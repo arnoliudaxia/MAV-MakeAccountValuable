@@ -1,12 +1,11 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { mkdirSync } from "fs";
 import { mkdir, rm } from "fs/promises";
 import { dirname, isAbsolute, resolve } from "path";
 import { env } from "../lib/env";
 import * as schema from "@db/schema";
 
-let client = createClient({ url: env.databaseUrl });
-let db = drizzle(client, { schema });
 let initialized: Promise<void> | null = null;
 let clientClosed = false;
 
@@ -28,6 +27,17 @@ async function ensureDatabaseFileDir() {
   if (!filePath) return;
   await mkdir(dirname(filePath), { recursive: true });
 }
+
+function ensureDatabaseFileDirSync() {
+  const filePath = getDatabaseFilePath();
+  if (!filePath) return;
+  mkdirSync(dirname(filePath), { recursive: true });
+}
+
+ensureDatabaseFileDirSync();
+
+let client = createClient({ url: env.databaseUrl });
+let db = drizzle(client, { schema });
 
 async function ensureColumn(table: string, column: string, definition: string) {
   const result = await client.execute(`PRAGMA table_info(${table})`);
@@ -116,6 +126,7 @@ export async function closeDbConnection() {
 
 export async function resetDbConnection() {
   await closeDbConnection();
+  await ensureDatabaseFileDir();
   client = createClient({ url: env.databaseUrl });
   db = drizzle(client, { schema });
   clientClosed = false;
