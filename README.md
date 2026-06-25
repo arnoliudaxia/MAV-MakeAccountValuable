@@ -2,7 +2,10 @@
 
 ![账有数项目封面](assets/readme-hero.png)
 
-这是一个2026年的个人财务账单记账小工具。项目前后端分离，为AI提供友好接口。使用 React + Vite 构建前端，Hono + tRPC 提供后端 API，SQLite/libSQL 存储本地数据，并接入 OpenAI 兼容接口用于账单识别。
+这是一个2026年的个人财务账单记账小工具。
+- 项目前后端分离，为AI提供友好接口。
+- 使用成熟数据库系统存储所有重要数据，保证数据安全。
+- 系统内嵌功能强大的AI助手，解放双手
 
 ## 设计哲学
 
@@ -51,8 +54,6 @@ cp .env.example .env
 主要配置：
 
 ```env
-APP_ID=
-APP_SECRET=
 DATABASE_URL=file:data/app.db
 
 OPENAI_API_KEY=
