@@ -55,7 +55,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card sticky top-0 z-50">
         <div className="container mx-auto px-4">
-          <div className="flex items-center h-14 gap-6">
+          <div className="flex flex-wrap items-center min-h-14 gap-x-6 gap-y-2 py-2">
             <Link to="/" className="flex items-center gap-2 shrink-0">
               <i
                 className="em em-moneybag block h-5 w-5"
@@ -67,7 +67,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </span>
             </Link>
 
-            <nav className="flex items-center gap-1">
+            <nav className="flex flex-wrap items-center gap-1">
               {navItems.map(item => {
                 const isActive =
                   item.path === "/"

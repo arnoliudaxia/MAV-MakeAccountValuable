@@ -26,6 +26,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useMemo, useState } from "react";
 
 const statusMap: Record<
   ReimbursementStatus,
@@ -49,6 +50,15 @@ export default function ReimbursementsPage() {
   } = trpc.bill.reimbursements.useQuery();
   const { data: settings } = trpc.settings.get.useQuery();
   const reimbursementParties = settings?.reimbursementParties ?? [];
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | ReimbursementStatus
+  >("all");
+
+  const filteredBills = useMemo(() => {
+    if (!bills) return [];
+    if (statusFilter === "all") return bills;
+    return bills.filter(bill => bill.reimbursementStatus === statusFilter);
+  }, [bills, statusFilter]);
 
   const updateMutation = trpc.bill.update.useMutation({
     onSuccess: async () => {
@@ -90,7 +100,7 @@ export default function ReimbursementsPage() {
   };
 
   const handleExportCsv = () => {
-    if (!bills || bills.length === 0) {
+    if (!filteredBills || filteredBills.length === 0) {
       toast.error("暂无可导出的报销账单");
       return;
     }
@@ -106,7 +116,7 @@ export default function ReimbursementsPage() {
       "是否摊销",
       "摊销月数",
     ];
-    const rows = bills.map(bill => [
+    const rows = filteredBills.map(bill => [
       bill.date,
       bill.name,
       bill.category,
@@ -142,10 +152,28 @@ export default function ReimbursementsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Select
+            value={statusFilter}
+            onValueChange={value =>
+              setStatusFilter(value as "all" | ReimbursementStatus)
+            }
+          >
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="筛选状态" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              {Object.entries(statusMap).map(([value, item]) => (
+                <SelectItem key={value} value={value}>
+                  {item.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Button
             variant="outline"
             onClick={handleExportCsv}
-            disabled={isLoading || !bills || bills.length === 0}
+            disabled={isLoading || filteredBills.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
             导出
@@ -167,7 +195,9 @@ export default function ReimbursementsPage() {
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="h-4 w-4" />
-            需要报销的账单 ({bills?.length || 0})
+            {statusFilter === "all"
+              ? `需要报销的账单 (${filteredBills.length})`
+              : `${statusMap[statusFilter].label}账单 (${filteredBills.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -175,10 +205,14 @@ export default function ReimbursementsPage() {
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : !bills || bills.length === 0 ? (
+          ) : filteredBills.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
               <AlertCircle className="h-8 w-8 mb-2" />
-              <p>暂无需要报销的账单</p>
+              <p>
+                {statusFilter === "all"
+                  ? "暂无需要报销的账单"
+                  : `暂无${statusMap[statusFilter].label}账单`}
+              </p>
             </div>
           ) : (
             <div className="rounded-md border overflow-auto">
@@ -195,7 +229,7 @@ export default function ReimbursementsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bills.map(bill => (
+                  {filteredBills.map(bill => (
                     <TableRow key={bill.id}>
                       <TableCell className="font-medium whitespace-nowrap">
                         {bill.date}

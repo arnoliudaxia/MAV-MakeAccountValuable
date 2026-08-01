@@ -385,9 +385,9 @@ export function BillForm({
                   placeholder="粘贴账单文字或剪贴板图片，例如：6月15日 支付宝 星巴克 36元 可报销 公司"
                   className="min-h-20"
                 />
-                <div className="flex items-center gap-3">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent">
-                    <ImagePlus className="h-4 w-4" />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <label className="inline-flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-md border bg-background px-3 py-2 text-sm hover:bg-accent">
+                    <ImagePlus className="h-4 w-4 shrink-0" />
                     上传图片
                     <Input
                       type="file"
@@ -397,13 +397,13 @@ export function BillForm({
                     />
                   </label>
                   {aiImageName && (
-                    <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-                      <span className="truncate">{aiImageName}</span>
+                    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
+                      <span className="min-w-0 flex-1 truncate">{aiImageName}</span>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7"
+                        className="h-7 w-7 shrink-0"
                         onClick={clearAIImage}
                       >
                         <X className="h-4 w-4" />
