@@ -53,6 +53,12 @@ interface BillFormProps {
   onSuccess?: () => void;
 }
 
+interface AIImage {
+  id: string;
+  name: string;
+  dataUrl: string;
+}
+
 function getDefaultCreateBillValues(
   year: number,
   month: number
@@ -103,8 +109,7 @@ export function BillForm({
   const utils = trpc.useUtils();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [aiText, setAiText] = useState("");
-  const [aiImageDataUrl, setAiImageDataUrl] = useState("");
-  const [aiImageName, setAiImageName] = useState("");
+  const [aiImages, setAiImages] = useState<AIImage[]>([]);
   const [recognizedBills, setRecognizedBills] = useState<RecognizedBill[]>([]);
   const [recognizedBillIndex, setRecognizedBillIndex] = useState(0);
   const { data: tags } = trpc.tag.list.useQuery();
@@ -151,8 +156,7 @@ export function BillForm({
     }
 
     setAiText("");
-    setAiImageDataUrl("");
-    setAiImageName("");
+    setAiImages([]);
     setRecognizedBills([]);
     setRecognizedBillIndex(0);
   }, [bill, year, month, form, open]);
@@ -197,15 +201,15 @@ export function BillForm({
     },
   });
 
-  const submitAIRecognize = (text: string, imageDataUrl?: string) => {
-    if (!text.trim() && !imageDataUrl) {
+  const submitAIRecognize = (text: string, images: AIImage[]) => {
+    if (!text.trim() && images.length === 0) {
       toast.error("请输入文字或上传图片");
       return false;
     }
 
     recognizeMutation.mutate({
       text: text.trim() || undefined,
-      imageDataUrl: imageDataUrl || undefined,
+      imageDataUrls: images.map(image => image.dataUrl),
       year,
       month,
       categories: tags?.map(tag => tag.name) ?? [],
@@ -215,11 +219,7 @@ export function BillForm({
     return true;
   };
 
-  const readAIImage = (
-    file: File | undefined,
-    name?: string,
-    recognizeAfterRead = false
-  ) => {
+  const readAIImage = (file: File | undefined, name?: string) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
       toast.error("请上传图片文件");
@@ -233,11 +233,21 @@ export function BillForm({
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
-        setAiImageDataUrl(reader.result);
-        setAiImageName(name || file.name || "剪贴板图片");
-        if (recognizeAfterRead) {
-          submitAIRecognize(aiText, reader.result);
-        }
+        const dataUrl = reader.result;
+        setAiImages(current => {
+          if (current.length >= 10) {
+            toast.error("一次最多添加 10 张图片");
+            return current;
+          }
+          return [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              name: name || file.name || "剪贴板图片",
+              dataUrl,
+            },
+          ];
+        });
       }
     };
     reader.onerror = () => toast.error("图片读取失败");
@@ -246,31 +256,32 @@ export function BillForm({
   };
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    readAIImage(file);
+    Array.from(event.target.files ?? []).forEach(file => readAIImage(file));
+    event.target.value = "";
   };
 
   const handleAIPaste = (event: ClipboardEvent<HTMLDivElement>) => {
     const items = Array.from(event.clipboardData.items);
-    const imageItem = items.find(item => item.type.startsWith("image/"));
-    const file = imageItem?.getAsFile();
+    const files = items
+      .filter(item => item.type.startsWith("image/"))
+      .map(item => item.getAsFile())
+      .filter((file): file is File => !!file);
 
-    if (!file) return;
+    if (files.length === 0) return;
 
     event.preventDefault();
-    const accepted = readAIImage(file, "剪贴板图片", true);
-    if (accepted) {
-      toast.success("已读取剪贴板图片");
-    }
+    files.forEach((file, index) =>
+      readAIImage(file, files.length > 1 ? `剪贴板图片 ${index + 1}` : "剪贴板图片")
+    );
+    toast.success(`已添加 ${files.length} 张剪贴板图片，请点击填充信息进行识别`);
   };
 
-  const clearAIImage = () => {
-    setAiImageDataUrl("");
-    setAiImageName("");
+  const clearAIImage = (id: string) => {
+    setAiImages(current => current.filter(image => image.id !== id));
   };
 
   const handleRecognize = () => {
-    submitAIRecognize(aiText, aiImageDataUrl);
+    submitAIRecognize(aiText, aiImages);
   };
 
   const handleSkipRecognizedBill = () => {
@@ -304,6 +315,13 @@ export function BillForm({
       ...data,
       isAmortized: !!data.isAmortized,
       amortizationMonths: data.isAmortized ? data.amortizationMonths || 1 : 1,
+      ...(!bill
+        ? {
+            reimbursementStatus: data.reimbursementParty
+              ? ("pending" as const)
+              : undefined,
+          }
+        : {}),
     };
 
     setIsSubmitting(true);
@@ -330,8 +348,7 @@ export function BillForm({
         } else {
           form.reset(getDefaultCreateBillValues(year, month));
           setAiText("");
-          setAiImageDataUrl("");
-          setAiImageName("");
+          setAiImages([]);
           setRecognizedBills([]);
           setRecognizedBillIndex(0);
           onOpenChange(false);
@@ -345,7 +362,7 @@ export function BillForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{bill ? "编辑账单" : "新增账单"}</DialogTitle>
         </DialogHeader>
@@ -382,7 +399,7 @@ export function BillForm({
                 <Textarea
                   value={aiText}
                   onChange={event => setAiText(event.target.value)}
-                  placeholder="粘贴账单文字或剪贴板图片，例如：6月15日 支付宝 星巴克 36元 可报销 公司"
+                  placeholder="粘贴账单文字或多张剪贴板图片，例如：6月15日 支付宝 星巴克 36元 可报销 公司"
                   className="min-h-20"
                 />
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
@@ -392,22 +409,30 @@ export function BillForm({
                     <Input
                       type="file"
                       accept="image/*"
+                      multiple
                       className="hidden"
                       onChange={handleImageChange}
                     />
                   </label>
-                  {aiImageName && (
-                    <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
-                      <span className="min-w-0 flex-1 truncate">{aiImageName}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0"
-                        onClick={clearAIImage}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                  {aiImages.length > 0 && (
+                    <div className="min-w-0 flex-1 space-y-1 text-sm text-muted-foreground">
+                      {aiImages.map((image, index) => (
+                        <div key={image.id} className="flex min-w-0 items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate">
+                            {index + 1}. {image.name}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            aria-label={`移除 ${image.name}`}
+                            onClick={() => clearAIImage(image.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -560,35 +585,37 @@ export function BillForm({
               />
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="reimbursementStatus"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>报销状态</FormLabel>
-                    <Select
-                      onValueChange={value =>
-                        field.onChange(value === "none" ? undefined : value)
-                      }
-                      value={field.value || "none"}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="选择报销状态" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">无需报销</SelectItem>
-                        <SelectItem value="pending">待报销</SelectItem>
-                        <SelectItem value="approved">已报销</SelectItem>
-                        <SelectItem value="rejected">已拒绝</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <div className={bill ? "grid grid-cols-2 gap-4" : "grid gap-4"}>
+              {bill && (
+                <FormField
+                  control={form.control}
+                  name="reimbursementStatus"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>报销状态</FormLabel>
+                      <Select
+                        onValueChange={value =>
+                          field.onChange(value === "none" ? undefined : value)
+                        }
+                        value={field.value || "none"}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="选择报销状态" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="none">无需报销</SelectItem>
+                          <SelectItem value="pending">待报销</SelectItem>
+                          <SelectItem value="approved">已报销</SelectItem>
+                          <SelectItem value="rejected">已拒绝</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <FormField
                 control={form.control}
                 name="reimbursementParty"
@@ -596,9 +623,17 @@ export function BillForm({
                   <FormItem>
                     <FormLabel>报销方</FormLabel>
                     <Select
-                      onValueChange={value =>
-                        field.onChange(value === "none" ? "" : value)
-                      }
+                      onValueChange={value => {
+                        const party = value === "none" ? "" : value;
+                        field.onChange(party);
+                        if (!bill) {
+                          form.setValue(
+                            "reimbursementStatus",
+                            party ? "pending" : undefined,
+                            { shouldDirty: true }
+                          );
+                        }
+                      }}
                       value={field.value || "none"}
                     >
                       <FormControl>

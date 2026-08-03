@@ -385,11 +385,11 @@ export const billRouter = createRouter({
         },
       ];
 
-      if (input.imageDataUrl) {
+      for (const imageDataUrl of input.imageDataUrls) {
         content.push({
           type: "image_url",
           image_url: {
-            url: input.imageDataUrl,
+            url: imageDataUrl,
             detail: "auto",
           },
         });

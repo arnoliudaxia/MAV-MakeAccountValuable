@@ -70,17 +70,17 @@ export const ListBillsInput = z.object({
 export const RecognizeBillInput = z
   .object({
     text: z.string().max(5000).optional(),
-    imageDataUrl: z
-      .string()
-      .max(15 * 1024 * 1024)
-      .optional(),
+    imageDataUrls: z
+      .array(z.string().max(15 * 1024 * 1024))
+      .max(10, "一次最多识别 10 张图片")
+      .default([]),
     year: z.number(),
     month: z.number().min(1).max(12),
     categories: z.array(z.string()).default([]),
     sources: z.array(z.string()).default([]),
     reimbursementParties: z.array(z.string()).default([]),
   })
-  .refine(input => input.text?.trim() || input.imageDataUrl, {
+  .refine(input => input.text?.trim() || input.imageDataUrls.length > 0, {
     message: "请输入文字或上传图片",
   });
 
