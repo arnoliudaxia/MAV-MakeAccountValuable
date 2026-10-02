@@ -26,7 +26,7 @@ export const bills = sqliteTable(
       .references(() => tags.id, { onDelete: "restrict", onUpdate: "cascade" }),
     name: text("name").notNull(),
     source: text("source").notNull(),
-    amount: real("amount").notNull(),
+    amount: integer("amount").notNull(),
     isAmortized: integer("is_amortized", { mode: "boolean" })
       .notNull()
       .default(false),

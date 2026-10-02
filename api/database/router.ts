@@ -61,7 +61,7 @@ export const databaseRouter = createRouter({
 
     return {
       billCount: Number(row?.bill_count ?? 0),
-      totalAmount: Number(row?.total_amount ?? 0),
+      totalAmount: Number(row?.total_amount ?? 0) / 100,
     };
   }),
 

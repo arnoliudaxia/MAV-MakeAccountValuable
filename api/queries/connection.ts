@@ -68,7 +68,7 @@ export async function ensureDb() {
           category_id TEXT NOT NULL,
           name TEXT NOT NULL,
           source TEXT NOT NULL,
-          amount REAL NOT NULL,
+          amount INTEGER NOT NULL,
           is_amortized INTEGER NOT NULL DEFAULT 0,
           amortization_months INTEGER NOT NULL DEFAULT 1,
           reimbursement_status TEXT,

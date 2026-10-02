@@ -8,6 +8,14 @@ import { getDb } from "../queries/connection";
 import { ensureTagByName, findByName } from "../tags/store";
 
 const DATA_DIR = join(process.cwd(), "data");
+
+function toCents(amount: number) {
+  const cents = Math.round(amount * 100);
+  if (!Number.isSafeInteger(cents)) {
+    throw new Error("金额超出可保存范围");
+  }
+  return cents;
+}
 const BILLS_FILE = join(DATA_DIR, "bills.json");
 const TAGS_FILE = join(DATA_DIR, "tags.json");
 
@@ -22,7 +30,7 @@ function normalizeBill(row: BillRow): Bill {
     category: row.categoryName,
     name: row.name,
     source: row.source,
-    amount: row.amount,
+    amount: row.amount / 100,
     isAmortized: !!row.isAmortized,
     amortizationMonths: row.amortizationMonths || 1,
     reimbursementStatus: row.reimbursementStatus ?? undefined,
@@ -143,6 +151,7 @@ async function bootstrapFromJson() {
       .insert(bills)
       .values({
         ...billData,
+        amount: toCents(normalizedBill.amount),
         categoryId: tag.id,
         reimbursementStatus: normalizedBill.reimbursementStatus ?? null,
         reimbursementParty: normalizedBill.reimbursementParty || null,
@@ -227,6 +236,7 @@ export async function create(bill: Bill): Promise<Bill> {
   const { category: _category, ...billData } = normalizedBill;
   await db.insert(bills).values({
     ...billData,
+    amount: toCents(normalizedBill.amount),
     categoryId: category.id,
     reimbursementStatus: normalizedBill.reimbursementStatus ?? null,
     reimbursementParty: normalizedBill.reimbursementParty || null,
@@ -253,6 +263,9 @@ export async function update(
   const { category: _category, ...billData } = data;
   const updateData: Partial<typeof bills.$inferInsert> = {
     ...billData,
+    ...(billData.amount !== undefined
+      ? { amount: toCents(billData.amount) }
+      : {}),
     ...(categoryId ? { categoryId } : {}),
     updatedAt: new Date().toISOString(),
   };

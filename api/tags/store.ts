@@ -214,11 +214,12 @@ export async function mergeInto(
 
 export async function findBillsUsingTag(tagId: string) {
   const db = await getDb();
-  return db
+  const rows = await db
     .select({ id: bills.id, date: bills.date, name: bills.name, amount: bills.amount })
     .from(bills)
     .where(eq(bills.categoryId, tagId))
     .orderBy(bills.date, bills.createdAt);
+  return rows.map(row => ({ ...row, amount: row.amount / 100 }));
 }
 
 export async function isTagInUse(tagId: string): Promise<boolean> {
