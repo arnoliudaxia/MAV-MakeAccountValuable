@@ -7,6 +7,7 @@
 - 项目前后端分离，为AI提供友好接口。
 - 使用成熟数据库系统存储所有重要数据，保证数据安全。
 - 系统内嵌功能强大的AI助手，解放双手
+- 安全性设计：登录密码通过 HTTPS 提交给后端，由 `scrypt` 哈希验证；验证成功后生成临时 token，并通过 `HttpOnly`、`SameSite=Strict` Cookie 保存，前端不会将密码或 token 写入 `localStorage`、`sessionStorage`。账单、分类、设置及数据库管理接口均需要登录，生产环境必须使用 HTTPS。
 
 ## 设计哲学
 
