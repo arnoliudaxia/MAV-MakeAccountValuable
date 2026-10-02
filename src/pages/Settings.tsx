@@ -175,8 +175,8 @@ function AiSettingsCard({ initialAi }: { initialAi: AiSettings }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          AI 调用会优先读取环境变量并发送测试指令；如果环境变量配置返回 HTTP
-          错误，会回退使用这里保存的数据库配置。
+          AI
+          调用只读取这里保存的数据库配置。修改并保存后，后续调用会使用新的配置。
         </div>
 
         <div className="space-y-2">
@@ -185,7 +185,7 @@ function AiSettingsCard({ initialAi }: { initialAi: AiSettings }) {
             type="password"
             value={apiKey}
             onChange={event => setApiKey(event.target.value)}
-            placeholder="备用 API Key"
+            placeholder="API Key"
           />
         </div>
 
