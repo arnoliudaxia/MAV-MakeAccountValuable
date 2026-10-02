@@ -66,7 +66,6 @@ export async function ensureDb() {
           id TEXT PRIMARY KEY NOT NULL,
           date TEXT NOT NULL,
           category_id TEXT NOT NULL,
-          FOREIGN KEY (category_id) REFERENCES tags(id) ON UPDATE CASCADE ON DELETE RESTRICT,
           name TEXT NOT NULL,
           source TEXT NOT NULL,
           amount REAL NOT NULL,
@@ -75,7 +74,8 @@ export async function ensureDb() {
           reimbursement_status TEXT,
           reimbursement_party TEXT,
           created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (category_id) REFERENCES tags(id) ON UPDATE CASCADE ON DELETE RESTRICT
         )`,
         `CREATE TABLE IF NOT EXISTS settings (
           key TEXT PRIMARY KEY NOT NULL,
