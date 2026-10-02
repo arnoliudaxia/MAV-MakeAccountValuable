@@ -50,9 +50,9 @@ export default function ReimbursementsPage() {
   } = trpc.bill.reimbursements.useQuery();
   const { data: settings } = trpc.settings.get.useQuery();
   const reimbursementParties = settings?.reimbursementParties ?? [];
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | ReimbursementStatus
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | ReimbursementStatus>(
+    "pending"
+  );
 
   const filteredBills = useMemo(() => {
     if (!bills) return [];
