@@ -174,12 +174,6 @@ export async function update(
     data.name = data.name.trim();
   }
   await db.update(tags).set(data).where(eq(tags.id, id));
-  if (data.name && data.name !== oldTag.name) {
-    await db
-      .update(bills)
-      .set({ category: data.name })
-      .where(eq(bills.category, oldTag.name));
-  }
   return findById(id);
 }
 
@@ -204,25 +198,31 @@ export async function mergeInto(
   target: Tag
 ): Promise<{ mergedBills: number; deleted: boolean }> {
   const db = await getDb();
-  const updateResult = await db
-    .update(bills)
-    .set({ category: target.name })
-    .where(eq(bills.category, source.name));
-  const deleteResult = await db.delete(tags).where(eq(tags.id, source.id));
+  return db.transaction(async tx => {
+    const updateResult = await tx
+      .update(bills)
+      .set({ categoryId: target.id })
+      .where(eq(bills.categoryId, source.id));
+    const deleteResult = await tx.delete(tags).where(eq(tags.id, source.id));
 
-  return {
-    mergedBills: updateResult.rowsAffected,
-    deleted: deleteResult.rowsAffected > 0,
-  };
+    return {
+      mergedBills: updateResult.rowsAffected,
+      deleted: deleteResult.rowsAffected > 0,
+    };
+  });
 }
 
-export async function isTagInUse(tagName: string): Promise<boolean> {
+export async function findBillsUsingTag(tagId: string) {
   const db = await getDb();
-  const [bill] = await db
-    .select({ id: bills.id })
+  return db
+    .select({ id: bills.id, date: bills.date, name: bills.name, amount: bills.amount })
     .from(bills)
-    .where(eq(bills.category, tagName))
-    .limit(1);
+    .where(eq(bills.categoryId, tagId))
+    .orderBy(bills.date, bills.createdAt);
+}
+
+export async function isTagInUse(tagId: string): Promise<boolean> {
+  const [bill] = await findBillsUsingTag(tagId);
   return !!bill;
 }
 

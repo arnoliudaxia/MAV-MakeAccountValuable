@@ -51,6 +51,7 @@ export async function ensureDb() {
   if (!initialized) {
     initialized = (async () => {
       await ensureDatabaseFileDir();
+      await client.execute("PRAGMA foreign_keys = ON");
       await client.batch([
         `CREATE TABLE IF NOT EXISTS tags (
           id TEXT PRIMARY KEY NOT NULL,
@@ -64,7 +65,8 @@ export async function ensureDb() {
         `CREATE TABLE IF NOT EXISTS bills (
           id TEXT PRIMARY KEY NOT NULL,
           date TEXT NOT NULL,
-          category TEXT NOT NULL,
+          category_id TEXT NOT NULL,
+          FOREIGN KEY (category_id) REFERENCES tags(id) ON UPDATE CASCADE ON DELETE RESTRICT,
           name TEXT NOT NULL,
           source TEXT NOT NULL,
           amount REAL NOT NULL,
@@ -81,7 +83,7 @@ export async function ensureDb() {
           updated_at TEXT NOT NULL
         )`,
         `CREATE INDEX IF NOT EXISTS bills_date_idx ON bills (date)`,
-        `CREATE INDEX IF NOT EXISTS bills_category_idx ON bills (category)`,
+        `CREATE INDEX IF NOT EXISTS bills_category_id_idx ON bills (category_id)`,
         `CREATE INDEX IF NOT EXISTS bills_source_idx ON bills (source)`,
       ]);
       await ensureColumn("tags", "parent_id", "parent_id TEXT");

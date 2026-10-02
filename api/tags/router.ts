@@ -168,9 +168,22 @@ export const tagRouter = createRouter({
       if (isSystemTagName(tag.name)) {
         throw new Error("系统分类“杂项”不能删除");
       }
-      const inUse = await store.isTagInUse(tag.name);
-      if (inUse) {
-        throw new Error(`分类 "${tag.name}" 正在被账单使用，无法删除`);
+      if (await store.hasChildren(tag.id)) {
+        throw new Error(`分类“${tag.name}”仍有子分类，无法删除`);
+      }
+
+      const relatedBills = await store.findBillsUsingTag(tag.id);
+      if (relatedBills.length > 0) {
+        const preview = relatedBills
+          .slice(0, 10)
+          .map(bill => `${bill.date} ${bill.name} ¥${bill.amount}`)
+          .join("、");
+        const suffix = relatedBills.length > 10
+          ? `；另有 ${relatedBills.length - 10} 笔未列出`
+          : "";
+        throw new Error(
+          `分类“${tag.name}”正在被 ${relatedBills.length} 笔账单使用，无法删除：${preview}${suffix}`
+        );
       }
       const success = await store.remove(input.id);
       if (!success) {

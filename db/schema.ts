@@ -21,7 +21,9 @@ export const bills = sqliteTable(
   {
     id: text("id").primaryKey(),
     date: text("date").notNull(),
-    category: text("category").notNull(),
+    categoryId: text("category_id")
+      .notNull()
+      .references(() => tags.id, { onDelete: "restrict", onUpdate: "cascade" }),
     name: text("name").notNull(),
     source: text("source").notNull(),
     amount: real("amount").notNull(),
@@ -38,7 +40,7 @@ export const bills = sqliteTable(
   },
   table => [
     index("bills_date_idx").on(table.date),
-    index("bills_category_idx").on(table.category),
+    index("bills_category_id_idx").on(table.categoryId),
     index("bills_source_idx").on(table.source),
   ]
 );

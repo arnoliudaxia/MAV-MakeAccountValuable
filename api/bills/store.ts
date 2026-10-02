@@ -13,11 +13,13 @@ const TAGS_FILE = join(DATA_DIR, "tags.json");
 
 let bootstrapPromise: Promise<void> | null = null;
 
-function normalizeBill(row: typeof bills.$inferSelect): Bill {
+type BillRow = typeof bills.$inferSelect & { categoryName: string };
+
+function normalizeBill(row: BillRow): Bill {
   return {
     id: row.id,
     date: row.date,
-    category: row.category,
+    category: row.categoryName,
     name: row.name,
     source: row.source,
     amount: row.amount,
@@ -130,16 +132,18 @@ async function bootstrapFromJson() {
   }
 
   for (const bill of jsonBills) {
-    await ensureTagByName(bill.category);
+    const tag = await ensureTagByName(bill.category);
     const normalizedBill = normalizeAmortization({
       ...bill,
       isAmortized: bill.isAmortized ?? false,
       amortizationMonths: bill.amortizationMonths ?? 1,
     });
+    const { category: _category, ...billData } = normalizedBill;
     await db
       .insert(bills)
       .values({
-        ...normalizedBill,
+        ...billData,
+        categoryId: tag.id,
         reimbursementStatus: normalizedBill.reimbursementStatus ?? null,
         reimbursementParty: normalizedBill.reimbursementParty || null,
       })
@@ -154,21 +158,41 @@ async function ensureBootstrap() {
   return bootstrapPromise;
 }
 
-async function resolveCategoryName(name: string): Promise<string> {
+async function resolveCategory(name: string) {
   const trimmed = name.trim();
   if (trimmed) {
     const tag = await findByName(trimmed);
-    if (tag) return tag.name;
+    if (tag) return tag;
   }
 
-  const miscTag = await ensureTagByName(MISC_CATEGORY_NAME, "#6366f1");
-  return miscTag.name;
+  return ensureTagByName(MISC_CATEGORY_NAME, "#6366f1");
+}
+
+function billQuery(db: Awaited<ReturnType<typeof getDb>>) {
+  return db
+    .select({
+      id: bills.id,
+      date: bills.date,
+      categoryId: bills.categoryId,
+      categoryName: tags.name,
+      name: bills.name,
+      source: bills.source,
+      amount: bills.amount,
+      isAmortized: bills.isAmortized,
+      amortizationMonths: bills.amortizationMonths,
+      reimbursementStatus: bills.reimbursementStatus,
+      reimbursementParty: bills.reimbursementParty,
+      createdAt: bills.createdAt,
+      updatedAt: bills.updatedAt,
+    })
+    .from(bills)
+    .innerJoin(tags, eq(bills.categoryId, tags.id));
 }
 
 export async function findAll(): Promise<Bill[]> {
   await ensureBootstrap();
   const db = await getDb();
-  const rows = await db.select().from(bills);
+  const rows = await billQuery(db);
   return rows.map(normalizeBill);
 }
 
@@ -178,7 +202,7 @@ export async function findByMonth(
 ): Promise<Bill[]> {
   await ensureBootstrap();
   const db = await getDb();
-  const rows = await db.select().from(bills);
+  const rows = await billQuery(db);
   return rows
     .map(normalizeBill)
     .map(bill => getBillForAccountingMonth(bill, year, month))
@@ -188,17 +212,22 @@ export async function findByMonth(
 export async function findById(id: string): Promise<Bill | undefined> {
   await ensureBootstrap();
   const db = await getDb();
-  const [bill] = await db.select().from(bills).where(eq(bills.id, id)).limit(1);
+  const [bill] = await billQuery(db).where(eq(bills.id, id)).limit(1);
   return bill ? normalizeBill(bill) : undefined;
 }
 
 export async function create(bill: Bill): Promise<Bill> {
   await ensureBootstrap();
-  const category = await resolveCategoryName(bill.category);
-  const normalizedBill = normalizeAmortization({ ...bill, category });
+  const category = await resolveCategory(bill.category);
+  const normalizedBill = normalizeAmortization({
+    ...bill,
+    category: category.name,
+  });
   const db = await getDb();
+  const { category: _category, ...billData } = normalizedBill;
   await db.insert(bills).values({
-    ...normalizedBill,
+    ...billData,
+    categoryId: category.id,
     reimbursementStatus: normalizedBill.reimbursementStatus ?? null,
     reimbursementParty: normalizedBill.reimbursementParty || null,
   });
@@ -213,13 +242,18 @@ export async function update(
   const existing = await findById(id);
   if (!existing) return undefined;
 
+  let categoryId: string | undefined;
   if ("category" in data && data.category !== undefined) {
-    data.category = await resolveCategoryName(data.category);
+    const category = await resolveCategory(data.category);
+    categoryId = category.id;
+    data = { ...data, category: category.name };
   }
 
   const db = await getDb();
+  const { category: _category, ...billData } = data;
   const updateData: Partial<typeof bills.$inferInsert> = {
-    ...data,
+    ...billData,
+    ...(categoryId ? { categoryId } : {}),
     updatedAt: new Date().toISOString(),
   };
   if ("reimbursementStatus" in data) {

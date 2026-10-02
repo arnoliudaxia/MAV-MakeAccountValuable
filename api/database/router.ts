@@ -10,7 +10,7 @@ const tableConfig = {
     columns: [
       "id",
       "date",
-      "category",
+      "category_id",
       "name",
       "source",
       "amount",
