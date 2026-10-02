@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Database, RefreshCw, Save } from "lucide-react";
+import { Database, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/providers/trpc";
 import { cn } from "@/lib/utils";
 
@@ -37,10 +36,8 @@ function formatJson(row: RawRow) {
 }
 
 export default function DatabasePage() {
-  const utils = trpc.useUtils();
   const [table, setTable] = useState<TableName>("bills");
   const [selectedId, setSelectedId] = useState("");
-  const [editorValue, setEditorValue] = useState<string | null>(null);
 
   const { data: tables } = trpc.database.tables.useQuery();
   const rowsQuery = trpc.database.rows.useQuery({ table });
@@ -61,65 +58,21 @@ export default function DatabasePage() {
     typeof selectedRow?.[primaryKey] === "string"
       ? selectedRow[primaryKey]
       : "";
-  const editorText =
-    editorValue ?? (selectedRow ? formatJson(selectedRow) : "");
-
-  const updateMutation = trpc.database.updateRow.useMutation({
-    onSuccess: async () => {
-      await Promise.all([
-        utils.database.rows.invalidate({ table }),
-        utils.bill.list.invalidate(),
-        utils.bill.stats.invalidate(),
-        utils.bill.filters.invalidate(),
-        utils.bill.reimbursements.invalidate(),
-        utils.tag.list.invalidate(),
-        utils.settings.get.invalidate(),
-      ]);
-      setEditorValue(null);
-      toast.success("数据库行已保存");
-    },
-    onError: error => {
-      toast.error(error.message || "保存失败");
-    },
-  });
 
   const handleTableChange = (value: string) => {
     setTable(value as TableName);
     setSelectedId("");
-    setEditorValue(null);
   };
 
   const handleSelectRow = (row: RawRow) => {
     const rowId = row[primaryKey];
     if (typeof rowId !== "string") return;
     setSelectedId(rowId);
-    setEditorValue(formatJson(row));
   };
 
   const handleRefresh = async () => {
     await rowsQuery.refetch();
     toast.success("已刷新数据库内容");
-  };
-
-  const handleSave = () => {
-    if (!selectedRow || !selectedRowId) {
-      toast.error("请选择要编辑的行");
-      return;
-    }
-
-    let parsed: RawRow;
-    try {
-      parsed = JSON.parse(editorText) as RawRow;
-    } catch {
-      toast.error("JSON 格式不正确");
-      return;
-    }
-
-    updateMutation.mutate({
-      table,
-      id: selectedRowId,
-      values: parsed,
-    });
   };
 
   return (
@@ -128,7 +81,7 @@ export default function DatabasePage() {
         <div>
           <h1 className="text-2xl font-bold">数据库管理</h1>
           <p className="text-sm text-muted-foreground">
-            查看并编辑本地 SQLite/libSQL 数据表内容
+            只读查看本地 SQLite/libSQL 数据表内容
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -219,26 +172,14 @@ export default function DatabasePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">行 JSON 编辑</CardTitle>
+            <CardTitle className="text-lg">行 JSON 查看</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Textarea
-              value={editorText}
-              onChange={event => setEditorValue(event.target.value)}
-              className="min-h-[420px] font-mono text-xs"
-              spellCheck={false}
-              disabled={!selectedRow}
-            />
-            <Button
-              className="w-full"
-              onClick={handleSave}
-              disabled={!selectedRow || updateMutation.isPending}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {updateMutation.isPending ? "保存中..." : "保存当前行"}
-            </Button>
+            <pre className="min-h-[420px] overflow-auto rounded-md border bg-muted/30 p-3 font-mono text-xs whitespace-pre-wrap break-all">
+              {selectedRow ? formatJson(selectedRow) : "请选择一行查看详细内容"}
+            </pre>
             <p className="text-xs text-muted-foreground">
-              主键字段用于定位行，不会被保存修改。保存分类名称时，会同步更新账单分类。
+              此页面为只读数据库查看器，不提供任何数据库修改操作。
             </p>
           </CardContent>
         </Card>

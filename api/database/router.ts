@@ -47,15 +47,8 @@ const tableConfig = {
 type TableName = keyof typeof tableConfig;
 
 const tableNameSchema = z.enum(["bills", "tags", "settings"]);
-const jsonRecordSchema = z.record(z.string(), z.unknown());
-
 function getConfig(table: TableName) {
   return tableConfig[table];
-}
-
-function normalizeValue(value: unknown) {
-  if (value === undefined) return undefined;
-  return value as string | number | boolean | null;
 }
 
 export const databaseRouter = createRouter({
@@ -78,9 +71,6 @@ export const databaseRouter = createRouter({
       label: config.label,
       primaryKey: config.primaryKey,
       columns: config.columns,
-      editableColumns: config.columns.filter(
-        column => column !== config.primaryKey
-      ),
     }));
   }),
 
@@ -95,62 +85,4 @@ export const databaseRouter = createRouter({
       return result.rows.map(row => ({ ...row }));
     }),
 
-  updateRow: protectedQuery
-    .input(
-      z.object({
-        table: tableNameSchema,
-        id: z.string().min(1),
-        values: jsonRecordSchema,
-      })
-    )
-    .mutation(async ({ input }) => {
-      const client = await getSqlClient();
-      const config = getConfig(input.table);
-      const primaryKey = config.primaryKey;
-      const editableColumns = new Set<string>(
-        config.columns.filter(column => column !== primaryKey)
-      );
-      const entries = Object.entries(input.values)
-        .filter(([column]) => editableColumns.has(column))
-        .map(([column, value]) => [column, normalizeValue(value)] as const)
-        .filter(
-          (
-            entry
-          ): entry is readonly [string, string | number | boolean | null] =>
-            entry[1] !== undefined
-        );
-
-      if (entries.length === 0) {
-        throw new Error("没有可保存的字段");
-      }
-
-      let oldTagName: string | undefined;
-      if (input.table === "tags" && input.values.name) {
-        const existing = await client.execute({
-          sql: "SELECT name FROM tags WHERE id = ?",
-          args: [input.id],
-        });
-        oldTagName = existing.rows[0]?.name as string | undefined;
-      }
-
-      const setClause = entries.map(([column]) => `${column} = ?`).join(", ");
-      const args = [...entries.map(([, value]) => value), input.id];
-      const result = await client.execute({
-        sql: `UPDATE ${input.table} SET ${setClause} WHERE ${primaryKey} = ?`,
-        args,
-      });
-
-      const newTagName =
-        input.table === "tags" && typeof input.values.name === "string"
-          ? input.values.name.trim()
-          : "";
-      if (oldTagName && newTagName && newTagName !== oldTagName) {
-        await client.execute({
-          sql: "UPDATE bills SET category = ? WHERE category = ?",
-          args: [newTagName, oldTagName],
-        });
-      }
-
-      return { rowsAffected: result.rowsAffected };
-    }),
 });
