@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "../middleware";
+import { createRouter, protectedQuery } from "../middleware";
 import * as store from "./store";
 import { getAiClient } from "../lib/ai";
 import { getSettings } from "../settings/store";
@@ -292,7 +292,7 @@ async function refineRecognizedBillCategories(
 }
 
 export const billRouter = createRouter({
-  list: publicQuery.input(ListBillsInput).query(async ({ input }) => {
+  list: protectedQuery.input(ListBillsInput).query(async ({ input }) => {
     const bills = await store.findByMonth(input.year, input.month);
 
     let filtered = bills;
@@ -317,7 +317,7 @@ export const billRouter = createRouter({
     );
   }),
 
-  reimbursements: publicQuery.query(async () => {
+  reimbursements: protectedQuery.query(async () => {
     const bills = await store.findAll();
     return bills
       .filter(bill => !!bill.reimbursementStatus)
@@ -331,13 +331,13 @@ export const billRouter = createRouter({
       });
   }),
 
-  getById: publicQuery
+  getById: protectedQuery
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
       return store.findById(input.id);
     }),
 
-  create: publicQuery.input(CreateBillInput).mutation(async ({ input }) => {
+  create: protectedQuery.input(CreateBillInput).mutation(async ({ input }) => {
     const now = new Date().toISOString();
     const isAmortized = !!input.isAmortized;
     const bill: Bill = {
@@ -351,7 +351,7 @@ export const billRouter = createRouter({
     return store.create(bill);
   }),
 
-  recognize: publicQuery
+  recognize: protectedQuery
     .input(RecognizeBillInput)
     .mutation(async ({ input }) => {
       const content: Array<
@@ -426,7 +426,7 @@ export const billRouter = createRouter({
       }
     }),
 
-  update: publicQuery.input(UpdateBillInput).mutation(async ({ input }) => {
+  update: protectedQuery.input(UpdateBillInput).mutation(async ({ input }) => {
     const { id, ...data } = input;
     const result = await store.update(id, data);
     if (!result) {
@@ -435,7 +435,7 @@ export const billRouter = createRouter({
     return result;
   }),
 
-  delete: publicQuery
+  delete: protectedQuery
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
       const success = await store.remove(input.id);
@@ -445,7 +445,7 @@ export const billRouter = createRouter({
       return { success: true };
     }),
 
-  stats: publicQuery.input(ListBillsInput).query(async ({ input }) => {
+  stats: protectedQuery.input(ListBillsInput).query(async ({ input }) => {
     const bills = await store.findByMonth(input.year, input.month);
 
     const getAccountingAmount = (bill: Bill) =>
@@ -485,7 +485,7 @@ export const billRouter = createRouter({
     };
   }),
 
-  filters: publicQuery.query(async () => {
+  filters: protectedQuery.query(async () => {
     const [categories, sources] = await Promise.all([
       store.getCategories(),
       store.getSources(),

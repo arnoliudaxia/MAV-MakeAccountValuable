@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "../middleware";
+import { createRouter, protectedQuery } from "../middleware";
 import { getSqlClient } from "../queries/connection";
 
 const tableConfig = {
@@ -59,7 +59,7 @@ function normalizeValue(value: unknown) {
 }
 
 export const databaseRouter = createRouter({
-  overview: publicQuery.query(async () => {
+  overview: protectedQuery.query(async () => {
     const client = await getSqlClient();
     const result = await client.execute(
       "SELECT COUNT(*) AS bill_count, COALESCE(SUM(amount), 0) AS total_amount FROM bills"
@@ -72,7 +72,7 @@ export const databaseRouter = createRouter({
     };
   }),
 
-  tables: publicQuery.query(() => {
+  tables: protectedQuery.query(() => {
     return Object.entries(tableConfig).map(([name, config]) => ({
       name,
       label: config.label,
@@ -84,7 +84,7 @@ export const databaseRouter = createRouter({
     }));
   }),
 
-  rows: publicQuery
+  rows: protectedQuery
     .input(z.object({ table: tableNameSchema }))
     .query(async ({ input }) => {
       const client = await getSqlClient();
@@ -95,7 +95,7 @@ export const databaseRouter = createRouter({
       return result.rows.map(row => ({ ...row }));
     }),
 
-  updateRow: publicQuery
+  updateRow: protectedQuery
     .input(
       z.object({
         table: tableNameSchema,

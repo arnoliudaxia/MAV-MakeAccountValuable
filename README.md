@@ -56,11 +56,15 @@ cp .env.example .env
 
 ```env
 DATABASE_URL=file:data/app.db
+AUTH_PASSWORD_HASH=scrypt$...
 ```
 
 说明：
 
 - `DATABASE_URL` 默认使用本地 SQLite 文件 `data/app.db`。
+- `AUTH_PASSWORD_HASH` 是必填的 scrypt 密码哈希，不要保存明文密码。运行 `npm run auth:hash`，按提示输入密码，再将输出复制到 `.env`。
+- 登录会话只保存在服务进程内存中，服务重启会使所有会话失效；多实例部署时每个实例的会话不共享，需要粘性会话或改用共享会话存储。
+- 生产环境必须使用 HTTPS；HttpOnly Cookie 可以防止前端 JavaScript 读取 token，但不能在明文 HTTP 中保护登录密码或 Cookie 传输。
 - AI 配置只从数据库读取，请在前端“设置”页面维护 API Key、Base URL 和模型。
 - 前端“设置”页面也可以维护报销方、分类匹配开关和数据库导入导出。
 
@@ -70,6 +74,13 @@ DATABASE_URL=file:data/app.db
 
 ```bash
 npm install
+```
+
+先生成并配置登录密码哈希：
+
+```bash
+npm run auth:hash
+# 将输出的 AUTH_PASSWORD_HASH=scrypt$... 写入 .env
 ```
 
 启动开发服务：
@@ -110,6 +121,36 @@ PORT=3001 npm run start
 
 - `dist/public`：前端静态资源
 - `dist/boot.js`：Node.js 后端入口，同时托管静态资源和 `/api/*`
+
+认证接口：
+
+- `POST /api/auth/login`：提交 `{ "password": "..." }`，服务端通过 HttpOnly、SameSite=Strict cookie 建立临时会话。
+- `GET /api/auth/session`：查询当前会话。
+- `POST /api/auth/logout`：清除当前会话。
+
+除认证接口外，tRPC 过程和数据库下载/上传接口都需要登录。浏览器端只使用 cookie，不会将密码或会话 token 写入 localStorage/sessionStorage。
+
+### 登录认证原理
+
+登录认证的密码传递和会话建立流程如下：
+
+```text
+浏览器密码
+    ↓ HTTPS 请求
+后端 scrypt 验证
+    ↓
+HttpOnly 临时 Cookie
+```
+
+具体说明：
+
+1. 用户在登录页面输入密码，前端仅通过同源 HTTPS 请求将密码提交给后端，不在浏览器中保存密码，也不在前端自行判断密码是否正确。
+2. 后端使用环境变量 `AUTH_PASSWORD_HASH` 中保存的 scrypt 哈希验证密码。服务端不保存明文密码。
+3. 密码正确后，后端生成密码学安全的随机临时 token，并通过 `Set-Cookie` 写入 `HttpOnly` Cookie。token 不会出现在 JSON 响应中，也不会写入 `localStorage` 或 `sessionStorage`。
+4. 后续请求由浏览器自动携带该 Cookie，后端验证 token 是否有效以及是否过期。当前临时会话有效期为 8 小时。
+5. `HttpOnly` 防止前端 JavaScript 读取 token，`SameSite=Strict` 降低跨站请求伪造风险；生产环境还会启用 `Secure`，因此必须使用 HTTPS。
+
+> 生产环境必须使用 HTTPS。`HttpOnly` 只能防止 JavaScript 读取 Cookie，不能保护明文 HTTP 传输中的密码和 Cookie。当前会话只保存在 Node.js 进程内存中，服务重启会使会话失效，多实例部署需要共享会话存储或粘性会话。
 
 ## 常用脚本
 

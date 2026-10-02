@@ -6,7 +6,9 @@ import {
   Database,
   Wallet,
   FileText,
+  LogOut,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -48,7 +50,13 @@ const navItems: NavItem[] = [
   },
 ];
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({
+  children,
+  onLogout,
+}: {
+  children: React.ReactNode;
+  onLogout: () => void;
+}) {
   const location = useLocation();
 
   return (
@@ -90,6 +98,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 );
               })}
             </nav>
+
+            <Button
+              className="ml-auto"
+              variant="ghost"
+              size="sm"
+              type="button"
+              onClick={onLogout}
+            >
+              <LogOut className="h-4 w-4" />
+              退出登录
+            </Button>
           </div>
         </div>
       </header>

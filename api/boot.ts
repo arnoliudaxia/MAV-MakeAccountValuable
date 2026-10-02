@@ -5,6 +5,12 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { copyFile, readFile, rm, writeFile } from "fs/promises";
 import { appRouter } from "./router";
 import { createContext } from "./context";
+import {
+  handleLogin,
+  handleLogout,
+  handleSession,
+  isAuthenticated,
+} from "./auth";
 import { env } from "./lib/env";
 import {
   closeDbConnection,
@@ -39,6 +45,13 @@ function isSqliteDatabase(buffer: Buffer) {
 }
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
+
+// Authentication endpoints intentionally stay public so the client can establish
+// and clear the HttpOnly session cookie.
+app.post("/api/auth/login", c => handleLogin(c.req.raw));
+app.get("/api/auth/session", c => handleSession(c.req.raw));
+app.post("/api/auth/logout", c => handleLogout(c.req.raw));
+
 app.use("/api/trpc/*", async c => {
   return fetchRequestHandler({
     endpoint: "/api/trpc",
@@ -48,6 +61,10 @@ app.use("/api/trpc/*", async c => {
   });
 });
 app.get("/api/database/download", async c => {
+  if (!isAuthenticated(c.req.raw)) {
+    return c.json({ error: "请先登录" }, 401);
+  }
+
   const databasePath = getDatabaseFilePath();
   if (!databasePath) {
     return c.json({ error: "当前数据库不是本地文件，无法下载" }, 400);
@@ -65,6 +82,10 @@ app.get("/api/database/download", async c => {
 });
 
 app.post("/api/database/upload", async c => {
+  if (!isAuthenticated(c.req.raw)) {
+    return c.json({ error: "请先登录" }, 401);
+  }
+
   const databasePath = getDatabaseFilePath();
   if (!databasePath) {
     return c.json({ error: "当前数据库不是本地文件，无法上传覆盖" }, 400);

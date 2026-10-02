@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createRouter, publicQuery } from "../middleware";
+import { createRouter, protectedQuery } from "../middleware";
 import * as store from "./store";
 import { getAiClient } from "../lib/ai";
 import {
@@ -67,17 +67,17 @@ function normalizeInferredTag(value: unknown, input: InferTagInput): unknown {
 }
 
 export const tagRouter = createRouter({
-  list: publicQuery.query(async () => {
+  list: protectedQuery.query(async () => {
     return store.findAll();
   }),
 
-  getById: publicQuery
+  getById: protectedQuery
     .input(z.object({ id: z.string() }))
     .query(async ({ input }) => {
       return store.findById(input.id);
     }),
 
-  create: publicQuery.input(CreateTagInput).mutation(async ({ input }) => {
+  create: protectedQuery.input(CreateTagInput).mutation(async ({ input }) => {
     const existing = await store.findByName(input.name);
     if (existing) {
       throw new Error(`分类 "${input.name}" 已存在`);
@@ -93,7 +93,7 @@ export const tagRouter = createRouter({
     return store.create(tag);
   }),
 
-  infer: publicQuery.input(InferTagInput).mutation(async ({ input }) => {
+  infer: protectedQuery.input(InferTagInput).mutation(async ({ input }) => {
     const ai = await getAiClient();
     const response = await ai.client.chat.completions.create({
       model: ai.model,
@@ -135,7 +135,7 @@ export const tagRouter = createRouter({
     }
   }),
 
-  update: publicQuery.input(UpdateTagInput).mutation(async ({ input }) => {
+  update: protectedQuery.input(UpdateTagInput).mutation(async ({ input }) => {
     const { id, ...data } = input;
     const tag = await store.findById(id);
     if (!tag) {
@@ -158,7 +158,7 @@ export const tagRouter = createRouter({
     return result;
   }),
 
-  delete: publicQuery
+  delete: protectedQuery
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
       const tag = await store.findById(input.id);
@@ -179,7 +179,7 @@ export const tagRouter = createRouter({
       return { success: true };
     }),
 
-  merge: publicQuery.input(MergeTagInput).mutation(async ({ input }) => {
+  merge: protectedQuery.input(MergeTagInput).mutation(async ({ input }) => {
     if (input.sourceId === input.targetId) {
       throw new Error("源分类和目标分类不能相同");
     }

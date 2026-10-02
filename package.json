@@ -14,7 +14,8 @@
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "auth:hash": "node scripts/generate-password-hash.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.3",
