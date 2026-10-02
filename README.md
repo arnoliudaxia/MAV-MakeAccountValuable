@@ -3,6 +3,7 @@
 ![账有数项目封面](assets/readme-hero.png)
 
 这是一个2026年的个人财务账单记账小工具。
+
 - 项目前后端分离，为AI提供友好接口。
 - 使用成熟数据库系统存储所有重要数据，保证数据安全。
 - 系统内嵌功能强大的AI助手，解放双手
@@ -55,17 +56,13 @@ cp .env.example .env
 
 ```env
 DATABASE_URL=file:data/app.db
-
-OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-5.5
 ```
 
 说明：
 
 - `DATABASE_URL` 默认使用本地 SQLite 文件 `data/app.db`。
-- AI 配置优先读取环境变量；如果环境变量配置不可用，应用会回退到数据库中的 AI 设置。
-- 前端“设置”页面也可以维护 AI 配置、报销方、分类匹配开关和数据库导入导出。
+- AI 配置只从数据库读取，请在前端“设置”页面维护 API Key、Base URL 和模型。
+- 前端“设置”页面也可以维护报销方、分类匹配开关和数据库导入导出。
 
 ## 本地开发
 
