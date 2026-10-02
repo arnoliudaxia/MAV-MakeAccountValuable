@@ -6,15 +6,14 @@ import {
 } from "../../contracts/settings";
 import { settings } from "../../db/schema";
 import { getDb } from "../queries/connection";
-import { env } from "../lib/env";
 
 const SETTINGS_KEY = "app";
 const DEFAULT_SETTINGS: AppSettings = {
   reimbursementParties: ["公司"],
   ai: {
     apiKey: "",
-    baseUrl: env.openaiBaseUrl,
-    model: env.openaiModel,
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-5.5",
     enableBillCategoryMatching: false,
   },
 };
