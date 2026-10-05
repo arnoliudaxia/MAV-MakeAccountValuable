@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/providers/trpc";
@@ -138,6 +139,15 @@ function AiSettingsCard({ initialAi }: { initialAi: AiSettings }) {
   const [apiKey, setApiKey] = useState(initialAi.apiKey);
   const [baseUrl, setBaseUrl] = useState(initialAi.baseUrl);
   const [model, setModel] = useState(initialAi.model);
+  const [billRecognitionPrompt, setBillRecognitionPrompt] = useState(
+    initialAi.billRecognitionPrompt
+  );
+  const [billCategoryMatchingPrompt, setBillCategoryMatchingPrompt] = useState(
+    initialAi.billCategoryMatchingPrompt
+  );
+  const [tagInferencePrompt, setTagInferencePrompt] = useState(
+    initialAi.tagInferencePrompt
+  );
   const [enableBillCategoryMatching, setEnableBillCategoryMatching] = useState(
     initialAi.enableBillCategoryMatching
   );
@@ -147,6 +157,9 @@ function AiSettingsCard({ initialAi }: { initialAi: AiSettings }) {
       setApiKey(data.ai.apiKey);
       setBaseUrl(data.ai.baseUrl);
       setModel(data.ai.model);
+      setBillRecognitionPrompt(data.ai.billRecognitionPrompt);
+      setBillCategoryMatchingPrompt(data.ai.billCategoryMatchingPrompt);
+      setTagInferencePrompt(data.ai.tagInferencePrompt);
       setEnableBillCategoryMatching(data.ai.enableBillCategoryMatching);
       await utils.settings.get.invalidate();
       toast.success("AI 设置已保存");
@@ -160,6 +173,9 @@ function AiSettingsCard({ initialAi }: { initialAi: AiSettings }) {
         apiKey,
         baseUrl,
         model,
+        billRecognitionPrompt,
+        billCategoryMatchingPrompt,
+        tagInferencePrompt,
         enableBillCategoryMatching,
       },
     });
@@ -205,6 +221,42 @@ function AiSettingsCard({ initialAi }: { initialAi: AiSettings }) {
             onChange={event => setModel(event.target.value)}
             placeholder="gpt-5.5"
           />
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">账单识别 Prompt</label>
+          <Textarea
+            value={billRecognitionPrompt}
+            onChange={event => setBillRecognitionPrompt(event.target.value)}
+            className="min-h-28 font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            用于文字或图片账单识别；动态账单内容和格式要求会由系统追加。
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">账单分类匹配 Prompt</label>
+          <Textarea
+            value={billCategoryMatchingPrompt}
+            onChange={event => setBillCategoryMatchingPrompt(event.target.value)}
+            className="min-h-24 font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            仅在开启分类数据库匹配时使用。
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">分类推断 Prompt</label>
+          <Textarea
+            value={tagInferencePrompt}
+            onChange={event => setTagInferencePrompt(event.target.value)}
+            className="min-h-24 font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            用于 AI 推荐分类的父分类、图标和颜色。
+          </p>
         </div>
 
         <div className="flex items-center justify-between rounded-md border px-3 py-2">
@@ -330,6 +382,9 @@ export default function SettingsPage() {
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-5.5",
     enableBillCategoryMatching: false,
+    billRecognitionPrompt: "",
+    billCategoryMatchingPrompt: "",
+    tagInferencePrompt: "",
   };
 
   return (
@@ -345,7 +400,7 @@ export default function SettingsPage() {
       />
 
       <AiSettingsCard
-        key={`${aiSettings.apiKey}\u0000${aiSettings.baseUrl}\u0000${aiSettings.model}\u0000${aiSettings.enableBillCategoryMatching}`}
+        key={`${aiSettings.apiKey}\u0000${aiSettings.baseUrl}\u0000${aiSettings.model}\u0000${aiSettings.billRecognitionPrompt}\u0000${aiSettings.billCategoryMatchingPrompt}\u0000${aiSettings.tagInferencePrompt}\u0000${aiSettings.enableBillCategoryMatching}`}
         initialAi={aiSettings}
       />
 

@@ -3,6 +3,7 @@ import { createRouter, protectedQuery } from "../middleware";
 import * as store from "./store";
 import { getAiClient } from "../lib/ai";
 import { getSettings } from "../settings/store";
+import { BILL_RECOGNITION_OUTPUT_FORMAT_PROMPT } from "../../contracts/settings";
 import {
   CreateBillInput,
   RecognizedBillsSchema,
@@ -222,7 +223,8 @@ function findSimilarBills(
 async function refineRecognizedBillCategories(
   recognized: RecognizedBills,
   categories: string[],
-  ai: Awaited<ReturnType<typeof getAiClient>>
+  ai: Awaited<ReturnType<typeof getAiClient>>,
+  prompt: string
 ): Promise<RecognizedBills> {
   const existingBills = await store.findAll();
   if (existingBills.length === 0 || recognized.bills.length === 0) {
@@ -251,8 +253,7 @@ async function refineRecognizedBillCategories(
         {
           role: "user",
           content: [
-            "你正在校准账单识别结果的分类。",
-            "只返回合法 JSON 对象，不要 markdown，不要解释。",
+            prompt,
             '返回格式为 {"matches":[{"index":0,"category":"分类名"}]}。matches 可以只包含需要修正分类的账单。',
             categories.length
               ? `可用分类：${categories.join("、")}。category 必须从这些分类中选择。`
@@ -354,6 +355,7 @@ export const billRouter = createRouter({
   recognize: protectedQuery
     .input(RecognizeBillInput)
     .mutation(async ({ input }) => {
+      const settings = await getSettings();
       const content: Array<
         | { type: "text"; text: string }
         | { type: "image_url"; image_url: { url: string; detail: "auto" } }
@@ -361,9 +363,9 @@ export const billRouter = createRouter({
         {
           type: "text",
           text: [
-            "请从用户提供的账单文字或图片中识别账单信息。",
-            "只返回一个合法 JSON 对象，不要 markdown，不要解释。",
-            '返回格式必须是 {"bills":[...]}。即使只识别到一笔账单，也必须放在 bills 数组里；如果有多笔交易，每笔交易一个对象。',
+            settings.ai.billRecognitionPrompt,
+            BILL_RECOGNITION_OUTPUT_FORMAT_PROMPT,
+            '即使只识别到一笔账单，也必须放在 bills 数组里；如果有多笔交易，每笔交易一个对象。',
             `当前表单年月是 ${input.year}-${String(input.month).padStart(2, "0")}。`,
             input.categories.length
               ? `已有分类：${input.categories.join("、")}。category 必须从这些已有分类中选择，优先使用最具体的匹配分类；无法命中时使用“杂项”。`
@@ -409,13 +411,16 @@ export const billRouter = createRouter({
       try {
         const parsed = normalizeRecognizedBills(parseJsonObject(outputText));
         const recognized = RecognizedBillsSchema.parse(parsed);
-        const settings = await getSettings();
-
         if (!settings.ai.enableBillCategoryMatching) {
           return recognized;
         }
 
-        return refineRecognizedBillCategories(recognized, input.categories, ai);
+        return refineRecognizedBillCategories(
+          recognized,
+          input.categories,
+          ai,
+          settings.ai.billCategoryMatchingPrompt
+        );
       } catch (error) {
         console.error(
           "Failed to parse bill recognition response",

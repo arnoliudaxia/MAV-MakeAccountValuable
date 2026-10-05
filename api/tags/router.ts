@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createRouter, protectedQuery } from "../middleware";
 import * as store from "./store";
 import { getAiClient } from "../lib/ai";
+import { getSettings } from "../settings/store";
 import {
   CreateTagInput,
   InferTagInput,
@@ -94,15 +95,14 @@ export const tagRouter = createRouter({
   }),
 
   infer: protectedQuery.input(InferTagInput).mutation(async ({ input }) => {
-    const ai = await getAiClient();
+    const [ai, settings] = await Promise.all([getAiClient(), getSettings()]);
     const response = await ai.client.chat.completions.create({
       model: ai.model,
       messages: [
         {
           role: "user",
           content: [
-            "你正在为账单分类管理应用推荐新分类的父分类、图标和颜色。",
-            "只返回一个合法 JSON 对象，不要 markdown，不要解释。",
+            settings.ai.tagInferencePrompt,
             `新分类名称：${input.name}`,
             input.parentCategories.length
               ? `可选父分类 JSON：${JSON.stringify(input.parentCategories)}。parentId 必须从这些 id 中选择；如果应该作为一级分类，返回 null。`

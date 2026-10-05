@@ -3,6 +3,9 @@ import {
   AppSettingsSchema,
   type AppSettings,
   type UpdateSettingsInput,
+  DEFAULT_BILL_RECOGNITION_PROMPT,
+  DEFAULT_BILL_CATEGORY_MATCHING_PROMPT,
+  DEFAULT_TAG_INFERENCE_PROMPT,
 } from "../../contracts/settings";
 import { settings } from "../../db/schema";
 import { getDb } from "../queries/connection";
@@ -15,6 +18,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-5.5",
     enableBillCategoryMatching: false,
+    billRecognitionPrompt: DEFAULT_BILL_RECOGNITION_PROMPT,
+    billCategoryMatchingPrompt: DEFAULT_BILL_CATEGORY_MATCHING_PROMPT,
+    tagInferencePrompt: DEFAULT_TAG_INFERENCE_PROMPT,
   },
 };
 
@@ -40,6 +46,14 @@ function normalizeSettings(value: AppSettings): AppSettings {
       baseUrl: value.ai.baseUrl.trim() || DEFAULT_SETTINGS.ai.baseUrl,
       model: value.ai.model.trim() || DEFAULT_SETTINGS.ai.model,
       enableBillCategoryMatching: !!value.ai.enableBillCategoryMatching,
+      billRecognitionPrompt:
+        value.ai.billRecognitionPrompt.trim() ||
+        DEFAULT_SETTINGS.ai.billRecognitionPrompt,
+      billCategoryMatchingPrompt:
+        value.ai.billCategoryMatchingPrompt.trim() ||
+        DEFAULT_SETTINGS.ai.billCategoryMatchingPrompt,
+      tagInferencePrompt:
+        value.ai.tagInferencePrompt.trim() || DEFAULT_SETTINGS.ai.tagInferencePrompt,
     },
   };
 }
