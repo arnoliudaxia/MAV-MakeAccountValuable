@@ -21,6 +21,12 @@ const TAGS_FILE = join(DATA_DIR, "tags.json");
 
 let bootstrapPromise: Promise<void> | null = null;
 
+function withoutCategory<T extends object>(value: T): Omit<T, "category"> {
+  const copy = { ...value } as T & { category?: unknown };
+  delete copy.category;
+  return copy as Omit<T, "category">;
+}
+
 type BillRow = typeof bills.$inferSelect & { categoryName: string };
 
 function normalizeBill(row: BillRow): Bill {
@@ -161,7 +167,7 @@ async function bootstrapFromJson() {
       isAmortized: bill.isAmortized ?? false,
       amortizationMonths: bill.amortizationMonths ?? 1,
     });
-    const { category: _category, ...billData } = normalizedBill;
+    const billData = withoutCategory(normalizedBill);
     await db
       .insert(bills)
       .values({
@@ -296,7 +302,7 @@ export async function create(bill: Bill): Promise<Bill> {
     category: category.name,
   });
   const db = await getDb();
-  const { category: _category, ...billData } = normalizedBill;
+  const billData = withoutCategory(normalizedBill);
   await db.insert(bills).values({
     ...billData,
     amount: toCents(normalizedBill.amount),
@@ -323,7 +329,7 @@ export async function update(
   }
 
   const db = await getDb();
-  const { category: _category, ...billData } = data;
+  const billData = withoutCategory(data);
   const updateData: Partial<typeof bills.$inferInsert> = {
     ...billData,
     ...(billData.amount !== undefined
