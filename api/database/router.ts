@@ -75,14 +75,31 @@ export const databaseRouter = createRouter({
   }),
 
   rows: protectedQuery
-    .input(z.object({ table: tableNameSchema }))
+    .input(
+      z.object({
+        table: tableNameSchema,
+        page: z.number().int().min(1).default(1),
+        pageSize: z.number().int().min(1).max(100).default(50),
+      })
+    )
     .query(async ({ input }) => {
       const client = await getSqlClient();
       const config = getConfig(input.table);
-      const result = await client.execute(
-        `SELECT ${config.columns.join(", ")} FROM ${input.table} ORDER BY ${config.orderBy}`
+      const countResult = await client.execute(
+        `SELECT COUNT(*) AS total_count FROM ${input.table}`
       );
-      return result.rows.map(row => ({ ...row }));
+      const totalCount = Number(countResult.rows[0]?.total_count ?? 0);
+      const offset = (input.page - 1) * input.pageSize;
+      const result = await client.execute({
+        sql: `SELECT ${config.columns.join(", ")} FROM ${input.table} ORDER BY ${config.orderBy} LIMIT ? OFFSET ?`,
+        args: [input.pageSize, offset],
+      });
+      return {
+        rows: result.rows.map(row => ({ ...row })),
+        totalCount,
+        page: input.page,
+        pageSize: input.pageSize,
+      };
     }),
 
 });

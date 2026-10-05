@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Database, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Database, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,14 +37,18 @@ function formatJson(row: RawRow) {
 
 export default function DatabasePage() {
   const [table, setTable] = useState<TableName>("bills");
+  const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState("");
+  const pageSize = 50;
 
   const { data: tables } = trpc.database.tables.useQuery();
-  const rowsQuery = trpc.database.rows.useQuery({ table });
+  const rowsQuery = trpc.database.rows.useQuery({ table, page, pageSize });
   const rows = useMemo(
-    () => (rowsQuery.data ?? []) as RawRow[],
-    [rowsQuery.data]
+    () => (rowsQuery.data?.rows ?? []) as RawRow[],
+    [rowsQuery.data?.rows]
   );
+  const totalCount = rowsQuery.data?.totalCount ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const tableMeta = useMemo(
     () => tables?.find(item => item.name === table),
@@ -61,6 +65,7 @@ export default function DatabasePage() {
 
   const handleTableChange = (value: string) => {
     setTable(value as TableName);
+    setPage(1);
     setSelectedId("");
   };
 
@@ -118,7 +123,7 @@ export default function DatabasePage() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Database className="h-4 w-4" />
-              {tableMeta?.label ?? table} ({rows.length})
+              {tableMeta?.label ?? table} ({totalCount})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -167,6 +172,39 @@ export default function DatabasePage() {
                 </TableBody>
               </Table>
             </div>
+            {totalPages > 1 && (
+              <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">
+                  第 {page} / {totalPages} 页
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPage(current => Math.max(1, current - 1));
+                      setSelectedId("");
+                    }}
+                    disabled={page <= 1 || rowsQuery.isFetching}
+                  >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
+                    上一页
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setPage(current => Math.min(totalPages, current + 1));
+                      setSelectedId("");
+                    }}
+                    disabled={page >= totalPages || rowsQuery.isFetching}
+                  >
+                    下一页
+                    <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

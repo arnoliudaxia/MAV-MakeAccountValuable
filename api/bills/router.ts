@@ -224,9 +224,11 @@ async function refineRecognizedBillCategories(
   recognized: RecognizedBills,
   categories: string[],
   ai: Awaited<ReturnType<typeof getAiClient>>,
-  prompt: string
+  prompt: string,
+  year: number,
+  month: number
 ): Promise<RecognizedBills> {
-  const existingBills = await store.findAll();
+  const existingBills = await store.findForSimilarity(year, month);
   if (existingBills.length === 0 || recognized.bills.length === 0) {
     return recognized;
   }
@@ -318,19 +320,7 @@ export const billRouter = createRouter({
     );
   }),
 
-  reimbursements: protectedQuery.query(async () => {
-    const bills = await store.findAll();
-    return bills
-      .filter(bill => !!bill.reimbursementStatus)
-      .sort((a, b) => {
-        const dateDiff =
-          new Date(a.date).getTime() - new Date(b.date).getTime();
-        if (dateDiff !== 0) return dateDiff;
-        return (
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-      });
-  }),
+  reimbursements: protectedQuery.query(() => store.findReimbursements()),
 
   getById: protectedQuery
     .input(z.object({ id: z.string() }))
@@ -419,7 +409,9 @@ export const billRouter = createRouter({
           recognized,
           input.categories,
           ai,
-          settings.ai.billCategoryMatchingPrompt
+          settings.ai.billCategoryMatchingPrompt,
+          input.year,
+          input.month
         );
       } catch (error) {
         console.error(

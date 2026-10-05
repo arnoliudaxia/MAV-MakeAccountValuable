@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, lt, or, sql } from "drizzle-orm";
 import { access, readFile } from "fs/promises";
 import { join } from "path";
 import type { Bill } from "../../contracts/bill";
@@ -55,6 +55,21 @@ function normalizeAmortization(bill: Bill): Bill {
 
 function getMonthIndex(year: number, month: number) {
   return year * 12 + month - 1;
+}
+
+function getMonthStart(year: number, month: number) {
+  return `${year}-${String(month).padStart(2, "0")}-01`;
+}
+
+function getMonthFromIndex(index: number) {
+  const year = Math.floor(index / 12);
+  const month = (index % 12) + 1;
+  return { year, month };
+}
+
+function getNextMonthStart(year: number, month: number) {
+  const next = getMonthFromIndex(getMonthIndex(year, month) + 1);
+  return getMonthStart(next.year, next.month);
 }
 
 function getBillStartMonthIndex(date: string) {
@@ -211,11 +226,59 @@ export async function findByMonth(
 ): Promise<Bill[]> {
   await ensureBootstrap();
   const db = await getDb();
-  const rows = await billQuery(db);
+  const monthStart = getMonthStart(year, month);
+  const nextMonthStart = getNextMonthStart(year, month);
+  const rows = await billQuery(db).where(
+    and(
+      lt(bills.date, nextMonthStart),
+      or(
+        and(eq(bills.isAmortized, false), gte(bills.date, monthStart)),
+        and(
+          eq(bills.isAmortized, true),
+          sql`date(${bills.date}, '+' || (${bills.amortizationMonths} - 1) || ' months') >= ${monthStart}`
+        )
+      )
+    )
+  );
   return rows
     .map(normalizeBill)
     .map(bill => getBillForAccountingMonth(bill, year, month))
     .filter((bill): bill is Bill => !!bill);
+}
+
+export async function findReimbursements(): Promise<Bill[]> {
+  await ensureBootstrap();
+  const db = await getDb();
+  const rows = await billQuery(db)
+    .where(isNotNull(bills.reimbursementStatus))
+    .orderBy(asc(bills.date), asc(bills.createdAt));
+  return rows.map(normalizeBill);
+}
+
+export async function findForSimilarity(
+  year: number,
+  month: number
+): Promise<Bill[]> {
+  await ensureBootstrap();
+  const db = await getDb();
+  const targetIndex = getMonthIndex(year, month);
+  const windowStart = getMonthFromIndex(targetIndex - 2);
+  const windowEnd = getMonthFromIndex(targetIndex + 2);
+  const start = getMonthStart(windowStart.year, windowStart.month);
+  const end = getNextMonthStart(windowEnd.year, windowEnd.month);
+  const rows = await billQuery(db).where(
+    and(
+      lt(bills.date, end),
+      or(
+        and(eq(bills.isAmortized, false), gte(bills.date, start)),
+        and(
+          eq(bills.isAmortized, true),
+          sql`date(${bills.date}, '+' || (${bills.amortizationMonths} - 1) || ' months') >= ${start}`
+        )
+      )
+    )
+  );
+  return rows.map(normalizeBill);
 }
 
 export async function findById(id: string): Promise<Bill | undefined> {
