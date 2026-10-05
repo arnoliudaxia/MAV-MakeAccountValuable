@@ -251,6 +251,7 @@ async function refineRecognizedBillCategories(
   try {
     const response = await ai.client.chat.completions.create({
       model: ai.model,
+      reasoning_effort: "low",
       messages: [
         {
           role: "user",
@@ -390,6 +391,7 @@ export const billRouter = createRouter({
       const ai = await getAiClient();
       const response = await ai.client.chat.completions.create({
         model: ai.model,
+        reasoning_effort: "low",
         messages: [{ role: "user", content }],
       });
 
