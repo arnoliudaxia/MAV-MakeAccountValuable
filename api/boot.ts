@@ -1,9 +1,13 @@
 import { Hono } from "hono";
+import { createClient } from "@libsql/client";
 import { bodyLimit } from "hono/body-limit";
 import type { HttpBindings } from "@hono/node-server";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { copyFile, readFile, rm, writeFile } from "fs/promises";
+import { copyFile, mkdtemp, readFile, rm, writeFile } from "fs/promises";
 import { appRouter } from "./router";
+import { join } from "path";
+import { tmpdir } from "os";
+import { pathToFileURL } from "url";
 import { createContext } from "./context";
 import {
   handleLogin,
@@ -19,6 +23,7 @@ import {
   getSqlClient,
   removeDatabaseSidecarFiles,
   resetDbConnection,
+  CURRENT_DATABASE_VERSION,
 } from "./queries/connection";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
@@ -42,6 +47,20 @@ function isSqliteDatabase(buffer: Buffer) {
     buffer.length > 100 &&
     buffer.subarray(0, 16).equals(Buffer.from("SQLite format 3\0"))
   );
+}
+
+async function getUploadedDatabaseVersion(buffer: Buffer) {
+  const tempDir = await mkdtemp(join(tmpdir(), "mav-db-check-"));
+  const tempPath = join(tempDir, "database.db");
+  const tempClient = createClient({ url: pathToFileURL(tempPath).href });
+  try {
+    await writeFile(tempPath, buffer);
+    const result = await tempClient.execute("PRAGMA user_version");
+    return Number(result.rows[0]?.user_version ?? 0);
+  } finally {
+    tempClient.close();
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
 }
 
 app.use(bodyLimit({ maxSize: 50 * 1024 * 1024 }));
@@ -100,6 +119,22 @@ app.post("/api/database/upload", async c => {
   const buffer = Buffer.from(await uploaded.arrayBuffer());
   if (!isSqliteDatabase(buffer)) {
     return c.json({ error: "上传文件不是有效的 SQLite 数据库" }, 400);
+  }
+
+  let uploadedVersion: number;
+  try {
+    uploadedVersion = await getUploadedDatabaseVersion(buffer);
+  } catch (error) {
+    console.error("Failed to read uploaded database version", error);
+    return c.json({ error: "无法读取上传数据库的版本号" }, 400);
+  }
+  if (uploadedVersion !== CURRENT_DATABASE_VERSION) {
+    return c.json(
+      {
+        error: `数据库版本 v${uploadedVersion} 不受支持，当前应用只接受 v${CURRENT_DATABASE_VERSION}`,
+      },
+      400
+    );
   }
 
   const backupPath = `${databasePath}.backup-${Date.now()}`;

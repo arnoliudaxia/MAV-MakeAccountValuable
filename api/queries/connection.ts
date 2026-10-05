@@ -6,6 +6,8 @@ import { dirname, isAbsolute, resolve } from "path";
 import { env } from "../lib/env";
 import * as schema from "@db/schema";
 
+export const CURRENT_DATABASE_VERSION = 0;
+
 let initialized: Promise<void> | null = null;
 let clientClosed = false;
 
@@ -51,6 +53,15 @@ export async function ensureDb() {
   if (!initialized) {
     initialized = (async () => {
       await ensureDatabaseFileDir();
+      const versionResult = await client.execute("PRAGMA user_version");
+      const databaseVersion = Number(
+        versionResult.rows[0]?.user_version ?? CURRENT_DATABASE_VERSION
+      );
+      if (databaseVersion !== CURRENT_DATABASE_VERSION) {
+        throw new Error(
+          `不支持的数据库版本 v${databaseVersion}，当前应用只接受 v${CURRENT_DATABASE_VERSION}`
+        );
+      }
       await client.execute("PRAGMA foreign_keys = ON");
       await client.batch([
         `CREATE TABLE IF NOT EXISTS tags (
@@ -103,6 +114,7 @@ export async function ensureDb() {
         "amortization_months",
         "amortization_months INTEGER NOT NULL DEFAULT 1"
       );
+      await client.execute(`PRAGMA user_version = ${CURRENT_DATABASE_VERSION}`);
     })();
   }
   return initialized;
