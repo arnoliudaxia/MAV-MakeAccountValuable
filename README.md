@@ -66,7 +66,7 @@ AUTH_PASSWORD_HASH=scrypt$...
 - `AUTH_PASSWORD_HASH` 是必填的 scrypt 密码哈希，不要保存明文密码。运行 `npm run auth:hash`，按提示输入密码，再将输出复制到 `.env`。
 - 登录会话只保存在服务进程内存中，服务重启会使所有会话失效；多实例部署时每个实例的会话不共享，需要粘性会话或改用共享会话存储。
 - 生产环境必须使用 HTTPS；HttpOnly Cookie 可以防止前端 JavaScript 读取 token，但不能在明文 HTTP 中保护登录密码或 Cookie 传输。
-- AI 配置只从数据库读取，请在前端“设置”页面维护 API Key、Base URL 和模型。
+- AI 配置只从数据库读取，请在前端“设置”页面维护 API Key、Base URL、模型和三类 AI Prompt（账单识别、账单分类匹配、分类推断）。
 - 前端“设置”页面也可以维护报销方、分类匹配开关和数据库导入导出。
 
 ## 本地开发
@@ -173,7 +173,7 @@ npm run db:migrate
 npm run db:push
 ```
 
-当前应用启动时也会自动确保基础表结构存在。
+当前应用启动时会检查 SQLite 数据库版本并确保基础表结构存在；不兼容的数据库版本不会自动迁移，必须先手动完成对应的数据库升级。
 
 ## 页面说明
 
@@ -202,10 +202,14 @@ data/app.db
 POST /api/trpc/bill.create
 ```
 
-请求示例：
+请求示例（API 需要已登录的 Cookie）：
 
 ```bash
-curl -X POST "http://localhost:3000/api/trpc/bill.create" \
+curl -c cookies.txt -X POST "http://localhost:3000/api/auth/login" \
+  -H "content-type: application/json" \
+  --data '{"password":"你的密码"}'
+
+curl -b cookies.txt -X POST "http://localhost:3000/api/trpc/bill.create" \
   -H "content-type: application/json" \
   --data-raw '{
     "json": {
@@ -226,7 +230,7 @@ curl -X POST "http://localhost:3000/api/trpc/bill.create" \
 - `category`：分类名称；如果未命中现有分类，后端会强制归为“杂项”
 - `name`：账单名称
 - `source`：来源，可以为空字符串
-- `amount`：支出金额，必须大于等于 0
+- `amount`：API 中使用元，必须大于等于 0；数据库内部以整数分存储（例如 36.50 元存为 3650）
 - `isAmortized`：是否摊销
 - `amortizationMonths`：摊销月数，范围 1 到 360
 - `reimbursementStatus`：可选，`pending`、`approved`、`rejected`
@@ -237,4 +241,5 @@ curl -X POST "http://localhost:3000/api/trpc/bill.create" \
 - 不能只部署 `dist/public` 到纯静态托管，否则 `/api/*`、数据库和 AI 识别不可用。
 - 需要持久化 `data/app.db`，否则重启或重新部署可能丢失数据。
 - 如果使用反向代理，确保 `/api/*` 和前端页面都转发到同一个 Node.js 服务。
-- 如果使用远程 libSQL，需要调整 `DATABASE_URL`，并确认 DB 上传/下载功能是否符合部署方式。
+- 如果使用远程 libSQL，需要调整 `DATABASE_URL`；本地 SQLite 数据库上传/下载覆盖功能不适用于远程数据库。
+- 数据库内部使用 `bills.category_id` 关联 `tags.id`，账单金额以整数分存储；API 和前端仍分别使用分类名称及元作为展示/输入格式。
