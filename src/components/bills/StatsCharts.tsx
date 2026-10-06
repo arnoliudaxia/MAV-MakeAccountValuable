@@ -54,8 +54,7 @@ function renderCategoryPieLabel(props: PieLabelRenderProps) {
     <text
       x={x}
       y={y}
-      fill="#222222"
-      // fill="#64748b"
+      fill="hsl(var(--foreground))"
       fontSize={14}
       textAnchor={x > cx ? "start" : "end"}
       dominantBaseline="central"
@@ -167,9 +166,13 @@ export function StatsCharts({
                     innerRadius="74%"
                     outerRadius="98%"
                     paddingAngle={2}
+                    stroke="hsl(var(--card))"
                     strokeWidth={2}
                     label={renderCategoryPieLabel}
-                    labelLine={{ stroke: "#94a3b8", strokeWidth: 1 }}
+                    labelLine={{
+                      stroke: "hsl(var(--muted-foreground))",
+                      strokeWidth: 1,
+                    }}
                     rootTabIndex={-1}
                     onClick={handlePieClick}
                   >
@@ -182,6 +185,12 @@ export function StatsCharts({
                     ))}
                   </Pie>
                   <Tooltip
+                    contentStyle={{
+                      backgroundColor: "hsl(var(--popover))",
+                      borderColor: "hsl(var(--border))",
+                      color: "hsl(var(--popover-foreground))",
+                    }}
+                    itemStyle={{ color: "hsl(var(--popover-foreground))" }}
                     formatter={(value, _name, item) => [
                       `¥${Number(value).toFixed(2)}`,
                       item.payload.category,

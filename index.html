@@ -3,6 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // Apply the saved theme before CSS/React load to avoid a light-mode flash.
+      // Keep this key and default in sync with ThemeProvider in src/main.tsx.
+      (() => {
+        let theme = "light";
+        try {
+          if (localStorage.getItem("mav-theme") === "dark") theme = "dark";
+        } catch {
+          // Storage may be unavailable; retain the default light appearance.
+        }
+        document.documentElement.classList.add(theme);
+        document.documentElement.style.colorScheme = theme;
+      })();
+    </script>
     <link href="https://emoji-css.afeld.me/emoji.css" rel="stylesheet" />
     <title>账有数｜让每一笔账都有价值</title>
   </head>

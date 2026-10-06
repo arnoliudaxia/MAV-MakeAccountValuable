@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router";
+import { useTheme } from "next-themes";
 import {
   Tags,
   Settings,
@@ -7,6 +8,8 @@ import {
   Wallet,
   FileText,
   LogOut,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -58,6 +61,8 @@ export function AppLayout({
   onLogout: () => void;
 }) {
   const location = useLocation();
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   return (
     <div className="min-h-screen bg-background">
@@ -99,16 +104,33 @@ export function AppLayout({
               })}
             </nav>
 
-            <Button
-              className="ml-auto"
-              variant="ghost"
-              size="sm"
-              type="button"
-              onClick={onLogout}
-            >
-              <LogOut className="h-4 w-4" />
-              退出登录
-            </Button>
+            <div className="ml-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                aria-label="深色模式"
+                aria-pressed={isDark}
+                title={isDark ? "切换到浅色模式" : "切换到深色模式"}
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+              >
+                {isDark ? (
+                  <Sun className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Moon className="h-4 w-4" aria-hidden="true" />
+                )}
+                {isDark ? "浅色模式" : "深色模式"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                onClick={onLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                退出登录
+              </Button>
+            </div>
           </div>
         </div>
       </header>

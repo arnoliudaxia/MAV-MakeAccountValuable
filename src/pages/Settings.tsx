@@ -397,23 +397,6 @@ export default function SettingsPage() {
         <p className="text-sm text-muted-foreground">管理应用配置和数据</p>
       </div>
 
-      {settings && (
-        <WebDavSettingsCard
-          key={JSON.stringify(settings.webdav)}
-          initial={settings.webdav}
-        />
-      )}
-
-      <ReimbursementPartiesCard
-        key={reimbursementParties.join("\u0000")}
-        initialParties={reimbursementParties}
-      />
-
-      <AiSettingsCard
-        key={`${aiSettings.apiKey}\u0000${aiSettings.baseUrl}\u0000${aiSettings.model}\u0000${aiSettings.billRecognitionPrompt}\u0000${aiSettings.billCategoryMatchingPrompt}\u0000${aiSettings.tagInferencePrompt}\u0000${aiSettings.enableBillCategoryMatching}`}
-        initialAi={aiSettings}
-      />
-
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
@@ -471,6 +454,23 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {settings && (
+        <WebDavSettingsCard
+          key={JSON.stringify(settings.webdav)}
+          initial={settings.webdav}
+        />
+      )}
+
+      <ReimbursementPartiesCard
+        key={reimbursementParties.join("\u0000")}
+        initialParties={reimbursementParties}
+      />
+
+      <AiSettingsCard
+        key={`${aiSettings.apiKey}\u0000${aiSettings.baseUrl}\u0000${aiSettings.model}\u0000${aiSettings.billRecognitionPrompt}\u0000${aiSettings.billCategoryMatchingPrompt}\u0000${aiSettings.tagInferencePrompt}\u0000${aiSettings.enableBillCategoryMatching}`}
+        initialAi={aiSettings}
+      />
     </div>
   );
 }
