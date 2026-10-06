@@ -1,4 +1,4 @@
-import { createClient } from "@libsql/client";
+import { createClient, type Client } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { mkdirSync } from "fs";
 import { mkdir, rm } from "fs/promises";
@@ -7,9 +7,6 @@ import { env } from "../lib/env";
 import * as schema from "@db/schema";
 
 export const CURRENT_DATABASE_VERSION = 0;
-
-let initialized: Promise<void> | null = null;
-let clientClosed = false;
 
 export function getDatabaseFilePath() {
   if (!env.databaseUrl.startsWith("file:")) return undefined;
@@ -38,22 +35,44 @@ function ensureDatabaseFileDirSync() {
 
 ensureDatabaseFileDirSync();
 
-let client = createClient({ url: env.databaseUrl });
-let db = drizzle(client, { schema });
+function createDatabase(client: Client) {
+  return drizzle(client, { schema });
+}
+type ConnectionState = {
+  client: Client;
+  db: ReturnType<typeof createDatabase>;
+  initialized: Promise<void> | null;
+  clientClosed: boolean;
+};
+const shared = globalThis as typeof globalThis & {
+  mavSqliteConnection?: ConnectionState;
+};
+// Keep one client across dev reloads; old timer/request closures access the same
+// mutable connection state after a database replacement.
+if (!shared.mavSqliteConnection) {
+  const client = createClient({ url: env.databaseUrl });
+  shared.mavSqliteConnection = {
+    client,
+    db: createDatabase(client),
+    initialized: null,
+    clientClosed: false,
+  };
+}
+const state = shared.mavSqliteConnection;
 
 async function ensureColumn(table: string, column: string, definition: string) {
-  const result = await client.execute(`PRAGMA table_info(${table})`);
+  const result = await state.client.execute(`PRAGMA table_info(${table})`);
   const exists = result.rows.some(row => row.name === column);
   if (!exists) {
-    await client.execute(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+    await state.client.execute(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
   }
 }
 
 export async function ensureDb() {
-  if (!initialized) {
-    initialized = (async () => {
+  if (!state.initialized) {
+    state.initialized = (async () => {
       await ensureDatabaseFileDir();
-      const versionResult = await client.execute("PRAGMA user_version");
+      const versionResult = await state.client.execute("PRAGMA user_version");
       const databaseVersion = Number(
         versionResult.rows[0]?.user_version ?? CURRENT_DATABASE_VERSION
       );
@@ -62,8 +81,8 @@ export async function ensureDb() {
           `不支持的数据库版本 v${databaseVersion}，当前应用只接受 v${CURRENT_DATABASE_VERSION}`
         );
       }
-      await client.execute("PRAGMA foreign_keys = ON");
-      await client.batch([
+      await state.client.execute("PRAGMA foreign_keys = ON");
+      await state.client.batch([
         `CREATE TABLE IF NOT EXISTS tags (
           id TEXT PRIMARY KEY NOT NULL,
           name TEXT NOT NULL UNIQUE,
@@ -114,36 +133,38 @@ export async function ensureDb() {
         "amortization_months",
         "amortization_months INTEGER NOT NULL DEFAULT 1"
       );
-      await client.execute(`PRAGMA user_version = ${CURRENT_DATABASE_VERSION}`);
+      await state.client.execute(
+        `PRAGMA user_version = ${CURRENT_DATABASE_VERSION}`
+      );
     })();
   }
-  return initialized;
+  return state.initialized;
 }
 
 export async function getDb() {
   await ensureDb();
-  return db;
+  return state.db;
 }
 
 export async function getSqlClient() {
   await ensureDb();
-  return client;
+  return state.client;
 }
 
 export async function closeDbConnection() {
-  if (!clientClosed) {
-    client.close();
-    clientClosed = true;
+  if (!state.clientClosed) {
+    state.client.close();
+    state.clientClosed = true;
   }
-  initialized = null;
+  state.initialized = null;
 }
 
 export async function resetDbConnection() {
   await closeDbConnection();
   await ensureDatabaseFileDir();
-  client = createClient({ url: env.databaseUrl });
-  db = drizzle(client, { schema });
-  clientClosed = false;
+  state.client = createClient({ url: env.databaseUrl });
+  state.db = createDatabase(state.client);
+  state.clientClosed = false;
   await ensureDb();
 }
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { WebDavSettingsCard } from "@/components/WebDavSettingsCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -239,7 +240,9 @@ function AiSettingsCard({ initialAi }: { initialAi: AiSettings }) {
           <label className="text-sm font-medium">账单分类匹配 Prompt</label>
           <Textarea
             value={billCategoryMatchingPrompt}
-            onChange={event => setBillCategoryMatchingPrompt(event.target.value)}
+            onChange={event =>
+              setBillCategoryMatchingPrompt(event.target.value)
+            }
             className="min-h-24 font-mono text-xs"
           />
           <p className="text-xs text-muted-foreground">
@@ -393,6 +396,13 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold">设置</h1>
         <p className="text-sm text-muted-foreground">管理应用配置和数据</p>
       </div>
+
+      {settings && (
+        <WebDavSettingsCard
+          key={JSON.stringify(settings.webdav)}
+          initial={settings.webdav}
+        />
+      )}
 
       <ReimbursementPartiesCard
         key={reimbursementParties.join("\u0000")}

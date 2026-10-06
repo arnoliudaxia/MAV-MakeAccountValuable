@@ -6,12 +6,14 @@ import {
   DEFAULT_BILL_RECOGNITION_PROMPT,
   DEFAULT_BILL_CATEGORY_MATCHING_PROMPT,
   DEFAULT_TAG_INFERENCE_PROMPT,
+  DEFAULT_WEBDAV_SETTINGS,
 } from "../../contracts/settings";
 import { settings } from "../../db/schema";
 import { getDb } from "../queries/connection";
 
 const SETTINGS_KEY = "app";
 const DEFAULT_SETTINGS: AppSettings = {
+  webdav: DEFAULT_WEBDAV_SETTINGS,
   reimbursementParties: ["公司"],
   ai: {
     apiKey: "",
@@ -40,6 +42,7 @@ function normalizeList(values: string[]) {
 
 function normalizeSettings(value: AppSettings): AppSettings {
   return {
+    webdav: { ...value.webdav, endpoint: value.webdav.endpoint.trim() },
     reimbursementParties: normalizeList(value.reimbursementParties),
     ai: {
       apiKey: value.ai.apiKey.trim(),
@@ -53,7 +56,8 @@ function normalizeSettings(value: AppSettings): AppSettings {
         value.ai.billCategoryMatchingPrompt.trim() ||
         DEFAULT_SETTINGS.ai.billCategoryMatchingPrompt,
       tagInferencePrompt:
-        value.ai.tagInferencePrompt.trim() || DEFAULT_SETTINGS.ai.tagInferencePrompt,
+        value.ai.tagInferencePrompt.trim() ||
+        DEFAULT_SETTINGS.ai.tagInferencePrompt,
     },
   };
 }
@@ -110,6 +114,7 @@ export async function updateSettings(
   return writeSettings({
     ...current,
     ...input,
+    webdav: { ...current.webdav, ...(input.webdav ?? {}) },
     ai: {
       ...current.ai,
       ...(input.ai ?? {}),

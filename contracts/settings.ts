@@ -31,7 +31,18 @@ export const AiSettingsSchema = z.object({
   tagInferencePrompt: z.string().default(DEFAULT_TAG_INFERENCE_PROMPT),
 });
 
+export const WebDavSettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  endpoint: z.string().trim().default(""),
+  username: z.string().default(""),
+  password: z.string().default(""),
+  intervalHours: z.number().min(1).max(8760).default(24),
+});
+export const DEFAULT_WEBDAV_SETTINGS = WebDavSettingsSchema.parse({});
+export type WebDavSettings = z.infer<typeof WebDavSettingsSchema>;
+
 export const AppSettingsSchema = z.object({
+  webdav: WebDavSettingsSchema.default(DEFAULT_WEBDAV_SETTINGS),
   reimbursementParties: z.array(z.string().min(1)).default([]),
   ai: AiSettingsSchema.default({
     apiKey: "",
@@ -45,6 +56,7 @@ export const AppSettingsSchema = z.object({
 });
 
 export const UpdateSettingsInput = z.object({
+  webdav: WebDavSettingsSchema.partial().optional(),
   reimbursementParties: z.array(z.string().min(1)).optional(),
   ai: AiSettingsSchema.partial().optional(),
 });
