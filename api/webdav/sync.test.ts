@@ -131,9 +131,15 @@ describe.sequential(
       client.close();
       remote = await readFile(stage);
       fetchMock.mockResolvedValue(
-        new Response(new Uint8Array(remote), { headers: { ETag: '"rev1"' } })
+        new Response(new Uint8Array(remote), {
+          headers: {
+            ETag: '"rev1"',
+            "Last-Modified": "Mon, 05 Oct 2026 08:00:00 GMT",
+          },
+        })
       );
       await runSync("pull");
+      expect(syncStatus().remoteUpdatedAt).toBe("2026-10-05T08:00:00.000Z");
       expect((await getSettings()).webdav).toEqual(localConfig);
       expect((await getSettings()).reimbursementParties).toEqual([
         "Remote party",
@@ -151,11 +157,19 @@ describe.sequential(
       );
     });
     it("push uses known ETag and rejects changed remote without disclosing errors", async () => {
-      fetchMock.mockResolvedValue(
-        new Response(null, { status: 204, headers: { ETag: '"rev2"' } })
-      );
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(null, { status: 204, headers: { ETag: '"rev2"' } })
+        )
+        .mockResolvedValueOnce(
+          new Response(null, {
+            headers: { "Last-Modified": "Mon, 05 Oct 2026 09:00:00 GMT" },
+          })
+        );
       await runSync("push");
-      expect(fetchMock.mock.lastCall?.[1]?.headers).toMatchObject({
+      expect(syncStatus().remoteUpdatedAt).toBe("2026-10-05T09:00:00.000Z");
+      expect(fetchMock.mock.lastCall?.[1]?.method).toBe("HEAD");
+      expect(fetchMock.mock.calls.at(-2)?.[1]?.headers).toMatchObject({
         "If-Match": '"rev1"',
       });
       fetchMock.mockResolvedValue(
@@ -166,6 +180,7 @@ describe.sequential(
         "If-Match": '"rev2"',
       });
       expect(syncStatus().error).not.toContain("credentials");
+      expect(syncStatus().remoteUpdatedAt).toBeNull();
     });
     it("creates missing remote with If-None-Match * and refuses overlap", async () => {
       await updateSettings({
@@ -174,7 +189,13 @@ describe.sequential(
       fetchMock
         .mockResolvedValueOnce(new Response(null, { status: 404 }))
         .mockResolvedValueOnce(
-          new Response(null, { status: 201, headers: { ETag: '"new"' } })
+          new Response(null, {
+            status: 201,
+            headers: {
+              ETag: '"new"',
+              "Last-Modified": "Mon, 05 Oct 2026 10:00:00 GMT",
+            },
+          })
         );
       await runSync("push");
       expect(fetchMock.mock.lastCall?.[1]?.headers).toMatchObject({

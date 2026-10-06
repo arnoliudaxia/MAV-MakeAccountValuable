@@ -21,7 +21,7 @@ import {
   initializeSync,
   configureSync,
   runSync,
-  syncStatus,
+  refreshSyncStatus,
 } from "./webdav/sync";
 import { DavError } from "./webdav/client";
 
@@ -53,7 +53,7 @@ app.use("/api/webdav/*", async (c, next) => {
   if (!isAuthenticated(c.req.raw)) return c.json({ error: "请先登录" }, 401);
   await next();
 });
-app.get("/api/webdav/status", c => c.json(syncStatus()));
+app.get("/api/webdav/status", async c => c.json(await refreshSyncStatus()));
 for (const action of ["test", "push", "pull"] as const) {
   app.post(`/api/webdav/${action}`, async c => {
     if (action === "pull") {

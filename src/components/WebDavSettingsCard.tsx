@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,22 @@ import type { WebDavSettings } from "../../contracts/settings";
 type Status = {
   busy: boolean;
   lastAction: string | null;
-  lastAttemptAt: string | null;
-  lastSuccessAt: string | null;
+  remoteUpdatedAt: string | null;
+  remoteStatus:
+    | "unconfigured"
+    | "unknown"
+    | "available"
+    | "missing"
+    | "unavailable";
+  remoteError: string | null;
   error: string | null;
   backupPath: string | null;
-  nextRunAt: string | null;
 };
 export function WebDavSettingsCard({ initial }: { initial: WebDavSettings }) {
   const [config, setConfig] = useState(initial);
   const [status, setStatus] = useState<Status>();
   const [busy, setBusy] = useState(false);
+  const statusRequest = useRef<Promise<void> | null>(null);
   const utils = trpc.useUtils();
   const save = trpc.settings.update.useMutation({
     onSuccess: async data => {
@@ -30,18 +36,43 @@ export function WebDavSettingsCard({ initial }: { initial: WebDavSettings }) {
     },
     onError: error => toast.error(error.message),
   });
-  async function refreshStatus() {
-    try {
-      const response = await fetch("/api/webdav/status");
-      if (response.ok) setStatus(await response.json());
-    } catch {
-      /* The next refresh can recover. */
-    }
+  function refreshStatus() {
+    if (statusRequest.current) return statusRequest.current;
+    statusRequest.current = (async () => {
+      try {
+        const response = await fetch("/api/webdav/status", {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("状态读取失败");
+        setStatus(await response.json());
+      } catch {
+        setStatus(
+          previous =>
+            previous && {
+              ...previous,
+              remoteUpdatedAt: null,
+              remoteStatus: "unavailable",
+              remoteError: "无法读取远端状态，请稍后刷新",
+            }
+        );
+      } finally {
+        statusRequest.current = null;
+      }
+    })();
+    return statusRequest.current;
   }
   useEffect(() => {
-    void refreshStatus();
-    const timer = setInterval(() => void refreshStatus(), 5000);
-    return () => clearInterval(timer);
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      await refreshStatus();
+      if (!stopped) timer = setTimeout(() => void poll(), 30_000);
+    }
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+    };
   }, []);
   async function run(action: "test" | "push" | "pull") {
     if (
@@ -177,10 +208,20 @@ export function WebDavSettingsCard({ initial }: { initial: WebDavSettings }) {
               {status.lastAction ?? "无"}
             </p>
             <p>
-              最近尝试：{status.lastAttemptAt ?? "无"}；最近成功：
-              {status.lastSuccessAt ?? "无"}
+              最新备份: 
+              {status.remoteUpdatedAt
+                ? new Date(status.remoteUpdatedAt).toLocaleString("zh-CN")
+                : status.remoteStatus === "missing"
+                  ? "远端文件不存在"
+                  : status.remoteStatus === "unconfigured"
+                    ? "未配置 WebDAV"
+                    : status.remoteStatus === "unavailable"
+                      ? "暂时无法读取"
+                      : "远端未提供修改时间"}
             </p>
-            <p>下次上传：{status.nextRunAt ?? "未安排"}</p>
+            {status.remoteError && (
+              <p className="text-destructive">{status.remoteError}</p>
+            )}
             {status.error && <p className="text-destructive">{status.error}</p>}
             {status.backupPath && <p>覆盖前备份：{status.backupPath}</p>}
           </div>

@@ -6,11 +6,13 @@ import {
 } from "../database/operations";
 import { davRequest, davUrls, DavError, remoteBuffer } from "./client";
 import { SyncScheduler } from "./scheduler";
+import { RemoteMetadata } from "./metadata";
 import type { WebDavSettings } from "../../contracts/settings";
 
 type Action = "test" | "push" | "pull";
 type SyncState = {
   scheduler: SyncScheduler;
+  metadata: RemoteMetadata;
   startup?: Promise<void>;
   busy: boolean;
   lastAction: Action | null;
@@ -23,6 +25,7 @@ type SyncState = {
 const shared = globalThis as typeof globalThis & { mavWebDavSync?: SyncState };
 const state: SyncState = (shared.mavWebDavSync ??= {
   scheduler: new SyncScheduler(),
+  metadata: new RemoteMetadata(),
   busy: false,
   lastAction: null,
   lastAttemptAt: null,
@@ -31,9 +34,23 @@ const state: SyncState = (shared.mavWebDavSync ??= {
   backupPath: null,
   etags: new Map(),
 });
+// HMR may reuse state created before metadata support was loaded.
+state.metadata ??= new RemoteMetadata();
+export async function refreshSyncStatus() {
+  if (!state.busy) {
+    await withDatabaseLock(async () => {
+      if (!state.busy)
+        await state.metadata.refresh((await getSettings()).webdav);
+    });
+  }
+  return syncStatus();
+}
 export function syncStatus() {
   return {
     busy: state.busy,
+    remoteUpdatedAt: state.metadata.remoteUpdatedAt,
+    remoteStatus: state.metadata.remoteStatus,
+    remoteError: state.metadata.remoteError,
     lastAction: state.lastAction,
     lastAttemptAt: state.lastAttemptAt,
     lastSuccessAt: state.lastSuccessAt,
@@ -73,6 +90,7 @@ export async function runSync(action: Action) {
         let missing = false;
         if (!etag) {
           const response = await davRequest(config, urls.file, "GET");
+          state.metadata.observe(config, response);
           missing = response.status === 404;
           etag = response.headers.get("etag") ?? undefined;
           await response.body?.cancel();
@@ -94,6 +112,7 @@ export async function runSync(action: Action) {
         );
         if (response.status === 404)
           throw new DavError("WebDAV 目录不存在，请先创建目录");
+        state.metadata.observe(config, response);
         const nextEtag = response.headers.get("etag");
         await response.body?.cancel();
         if (nextEtag && !nextEtag.startsWith("W/"))
@@ -104,6 +123,7 @@ export async function runSync(action: Action) {
           // never adopt a concurrent writer's different database revision.
           state.etags.set(urls.file, etag ?? '"unknown-after-upload"');
           const verification = await davRequest(config, urls.file, "GET");
+          state.metadata.observe(config, verification);
           const verifiedEtag = verification.headers.get("etag");
           if (verification.status === 404) {
             await verification.body?.cancel();
@@ -122,6 +142,7 @@ export async function runSync(action: Action) {
         }
       } else {
         const response = await davRequest(config, urls.file, "GET");
+        state.metadata.observe(config, response);
         if (response.status === 404) {
           await response.body?.cancel();
           throw new DavError("远端 app.db 不存在，继续使用本地数据库");
@@ -133,10 +154,15 @@ export async function runSync(action: Action) {
         if (etag && !etag.startsWith("W/")) state.etags.set(urls.file, etag);
         else state.etags.delete(urls.file);
       }
+      // Metadata failure is reported separately and does not undo a completed sync.
+      await state.metadata.refresh(config);
       state.lastSuccessAt = new Date().toISOString();
       return { ok: true as const };
     });
   } catch (error) {
+    // In particular, a conflict means the previously observed remote revision
+    // is no longer current. The next status refresh must re-read metadata.
+    if (state.metadata.remoteStatus !== "missing") state.metadata.invalidate();
     // DB validation errors are controlled messages, but filesystem/libsql errors
     // can contain local paths and SQL/settings. Only allow known messages.
     const message =
