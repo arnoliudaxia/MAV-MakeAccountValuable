@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/providers/trpc";
 import { BillForm } from "./BillForm";
-import type { Bill } from "../../../contracts/bill";
+import type { Bill, ListBillsInput } from "@contracts/bill";
 import {
   Loader2,
   Pencil,
@@ -34,32 +34,13 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface BillTableProps {
-  year: number;
-  month: number;
-  category?: string;
-  source?: string;
-  keyword?: string;
-}
-
 type SortKey = "date" | "amount";
 type SortDirection = "asc" | "desc";
 
-export function BillTable({
-  year,
-  month,
-  category,
-  source,
-  keyword,
-}: BillTableProps) {
+export function BillTable(filters: ListBillsInput) {
+  const { year, month } = filters;
   const utils = trpc.useUtils();
-  const { data: bills, isLoading } = trpc.bill.list.useQuery({
-    year,
-    month,
-    category: category || undefined,
-    source: source || undefined,
-    keyword: keyword || undefined,
-  });
+  const { data: bills, isLoading } = trpc.bill.list.useQuery(filters);
 
   const { data: tags } = trpc.tag.list.useQuery();
 
@@ -154,7 +135,10 @@ export function BillTable({
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
         <AlertCircle className="h-8 w-8 mb-2" />
-        <p>本月暂无账单记录</p>
+        <p>当前筛选下暂无账单记录</p>
+        <p className="mt-1 text-sm">
+          可在页面上方清除分类筛选，或调整月份、来源与关键词。
+        </p>
       </div>
     );
   }

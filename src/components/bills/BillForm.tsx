@@ -33,12 +33,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { trpc } from "@/providers/trpc";
-import type {
-  Bill,
-  CreateBillInput,
-  RecognizedBill,
-} from "../../../contracts/bill";
-import { CreateBillInput as CreateBillInputSchema } from "../../../contracts/bill";
+import type { Bill, RecognizedBill } from "../../../contracts/bill";
+import {
+  BillFormSchema,
+  getBillUpdateInput,
+  type BillFormValues,
+} from "./form-values";
 import { TagSelector } from "./TagSelector";
 import { ImagePlus, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
@@ -62,7 +62,7 @@ interface AIImage {
 function getDefaultCreateBillValues(
   year: number,
   month: number
-): CreateBillInput {
+): BillFormValues {
   return {
     date: `${year}-${String(month).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`,
     category: "",
@@ -71,7 +71,7 @@ function getDefaultCreateBillValues(
     amount: 0,
     isAmortized: false,
     amortizationMonths: 1,
-    reimbursementStatus: undefined,
+    reimbursementStatus: null,
     reimbursementParty: "",
   };
 }
@@ -80,7 +80,7 @@ function getRecognizedBillValues(
   recognized: RecognizedBill,
   year: number,
   month: number
-): CreateBillInput {
+): BillFormValues {
   const isAmortized = !!recognized.isAmortized;
   const defaults = getDefaultCreateBillValues(year, month);
 
@@ -93,7 +93,7 @@ function getRecognizedBillValues(
     amount: recognized.amount ?? 0,
     isAmortized,
     amortizationMonths: isAmortized ? recognized.amortizationMonths || 1 : 1,
-    reimbursementStatus: recognized.reimbursementStatus,
+    reimbursementStatus: recognized.reimbursementStatus ?? null,
     reimbursementParty: recognized.reimbursementParty || "",
   };
 }
@@ -117,8 +117,8 @@ export function BillForm({
   const { data: settings } = trpc.settings.get.useQuery();
   const reimbursementParties = settings?.reimbursementParties ?? [];
 
-  const form = useForm<CreateBillInput>({
-    resolver: zodResolver(CreateBillInputSchema),
+  const form = useForm<BillFormValues>({
+    resolver: zodResolver(BillFormSchema),
     defaultValues: getDefaultCreateBillValues(year, month),
   });
   const isAmortized = useWatch({
@@ -148,7 +148,7 @@ export function BillForm({
         amount: bill.amount,
         isAmortized: bill.isAmortized,
         amortizationMonths: bill.amortizationMonths || 1,
-        reimbursementStatus: bill.reimbursementStatus,
+        reimbursementStatus: bill.reimbursementStatus ?? null,
         reimbursementParty: bill.reimbursementParty || "",
       });
     } else {
@@ -310,28 +310,24 @@ export function BillForm({
     toast.info("已跳过最后一笔识别结果");
   };
 
-  const onSubmit = async (data: CreateBillInput) => {
-    const payload: CreateBillInput = {
+  const onSubmit = async (data: BillFormValues) => {
+    const payload: BillFormValues = {
       ...data,
       isAmortized: !!data.isAmortized,
       amortizationMonths: data.isAmortized ? data.amortizationMonths || 1 : 1,
-      ...(!bill
-        ? {
-            reimbursementStatus: data.reimbursementParty
-              ? ("pending" as const)
-              : undefined,
-          }
-        : {}),
     };
 
     setIsSubmitting(true);
     try {
       if (bill) {
-        await updateMutation.mutateAsync({ id: bill.id, ...payload });
+        await updateMutation.mutateAsync(getBillUpdateInput(bill.id, payload));
         onOpenChange(false);
         onSuccess?.();
       } else {
-        await createMutation.mutateAsync(payload);
+        await createMutation.mutateAsync({
+          ...payload,
+          reimbursementStatus: data.reimbursementParty ? "pending" : undefined,
+        });
         if (hasNextRecognizedBill) {
           const nextIndex = recognizedBillIndex + 1;
           const nextBill = recognizedBills[nextIndex];
@@ -594,9 +590,14 @@ export function BillForm({
                     <FormItem>
                       <FormLabel>报销状态</FormLabel>
                       <Select
-                        onValueChange={value =>
-                          field.onChange(value === "none" ? undefined : value)
-                        }
+                        onValueChange={value => {
+                          field.onChange(value === "none" ? null : value);
+                          if (value === "none") {
+                            form.setValue("reimbursementParty", "", {
+                              shouldDirty: true,
+                            });
+                          }
+                        }}
                         value={field.value || "none"}
                       >
                         <FormControl>
@@ -626,10 +627,10 @@ export function BillForm({
                       onValueChange={value => {
                         const party = value === "none" ? "" : value;
                         field.onChange(party);
-                        if (!bill) {
+                        if (!bill || !form.getValues("reimbursementStatus")) {
                           form.setValue(
                             "reimbursementStatus",
-                            party ? "pending" : undefined,
+                            party ? "pending" : null,
                             { shouldDirty: true }
                           );
                         }

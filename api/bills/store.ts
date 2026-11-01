@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, isNotNull, lt, or, sql } from "drizzle-orm";
 import { access, readFile } from "fs/promises";
 import { join } from "path";
-import type { Bill } from "../../contracts/bill";
+import type { Bill, UpdateBillInput } from "../../contracts/bill";
 import { MISC_CATEGORY_NAME, type Tag } from "../../contracts/tag";
 import { bills, tags } from "../../db/schema";
 import { getDb } from "../queries/connection";
@@ -315,7 +315,7 @@ export async function create(bill: Bill): Promise<Bill> {
 
 export async function update(
   id: string,
-  data: Partial<Bill>
+  data: Omit<UpdateBillInput, "id">
 ): Promise<Bill | undefined> {
   await ensureBootstrap();
   const existing = await findById(id);
@@ -338,10 +338,11 @@ export async function update(
     ...(categoryId ? { categoryId } : {}),
     updatedAt: new Date().toISOString(),
   };
-  if ("reimbursementStatus" in data) {
-    updateData.reimbursementStatus = data.reimbursementStatus ?? null;
-  }
-  if ("reimbursementParty" in data) {
+  if (data.reimbursementStatus === null) {
+    // Clearing reimbursement must also discard the old party, even if omitted.
+    updateData.reimbursementStatus = null;
+    updateData.reimbursementParty = null;
+  } else if (data.reimbursementParty !== undefined) {
     updateData.reimbursementParty = data.reimbursementParty || null;
   }
   if (data.isAmortized === false) {

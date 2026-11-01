@@ -51,9 +51,10 @@ const billEndpoints: EndpointRow[] = [
   {
     path: "bill.list",
     kind: "query",
-    input: "{ year, month, category?, source?, keyword? }",
+    input:
+      "{ year, month, category?, excludedCategories?: string[], source?, keyword? }",
     output: "Bill[]",
-    note: "按“账期”返回：摊销账单会出现在它分摊的每个月，并附带 monthlyAmount 与 amortizationMonthIndex；结果按 date 倒序。month 取 1-12",
+    note: "按“账期”返回：摊销账单会出现在它分摊的每个月，并附带 monthlyAmount 与 amortizationMonthIndex；结果按 date 倒序。month 取 1-12；category 按分类名精确匹配，excludedCategories 排除指定分类（排除优先，不自动扩展子分类）；来源与关键词筛选可叠加",
   },
   {
     path: "bill.reimbursements",
@@ -89,7 +90,7 @@ const billEndpoints: EndpointRow[] = [
     kind: "mutation",
     input: "{ id, ...可选字段 }",
     output: "Bill",
-    note: "字段级更新；账单不存在时抛“账单不存在”（500）",
+    note: "字段级更新，省略字段保持原值；reimbursementStatus: null 表示无需报销，并同时清空报销方；reimbursementParty: null 仅清空报销方；账单不存在时抛“账单不存在”（500）",
   },
   {
     path: "bill.delete",
@@ -101,10 +102,11 @@ const billEndpoints: EndpointRow[] = [
   {
     path: "bill.stats",
     kind: "query",
-    input: "{ year, month }",
+    input:
+      "{ year, month, category?, excludedCategories?: string[], source?, keyword? }",
     output:
       "{ totalCount, totalExpense, totalReimbursable, totalReimbursed, byCategory, bySource }",
-    note: "金额按 monthlyAmount 累加；pending / approved 计入可报销，approved 再计入已报销；byCategory 会排除可报销账单，bySource 不排除",
+    note: "与 bill.list 共用分类、排除分类、来源、关键词筛选；金额按 monthlyAmount 累加；pending / approved 计入可报销，approved 再计入已报销；byCategory 会排除可报销账单，bySource 不排除",
   },
   {
     path: "bill.filters",
@@ -857,8 +859,8 @@ function buildAgentFriendlyContext(categoryContext: string, tagCount: number) {
 [shape] 成功 {"result":{"data":{"json":…}}}；失败 {"error":{"json":{"message","data.code","data.httpStatus"}}}。查不到记录是 200 + json:null + meta.values=["undefined"]，不是 404。业务规则被拒是 500，但 message 为可直接展示的中文（如「账单不存在」「分类"三餐"已存在」）。校验失败是 400 + zod issues。请求体上限 50MB。
 [money] 接口层金额一律是元（number）；SQLite 与 database.rows 里是整数分。
 [create] POST /api/trpc/bill.create：date=YYYY-MM-DD 必填；name 必填；amount 必填且 ≥0；source 必填可空串；category 必填，命中不了已有分类会被强制归为「杂项」；isAmortized 默认 false；摊销时 amortizationMonths 必填（1-360）；reimbursementStatus 只能 pending|approved|rejected，无报销就省略；reimbursementParty 可选。返回补 id/createdAt/updatedAt 的完整 Bill。
-[read] bill.list{year,month,category?,source?,keyword?}（摊销账单按分摊月展开，附 monthlyAmount 与 amortizationMonthIndex）· bill.getById{id} · bill.reimbursements · bill.stats{year,month} · bill.filters · tag.list（两级分类树，parentId=null 为一级）· database.overview · settings.get（含明文 apiKey，勿外传）。
-[update] bill.update{id,...字段} · bill.delete{id} → {success:true} · tag.create{name,color:#RRGGBB,icon,parentId?,sortOrder?} · tag.update{id,...} · tag.merge{sourceId,targetId} · tag.delete{id}（「杂项」不可改/删/作合并源；被账单占用或有子分类会被拒绝）。
+[read] bill.list{year,month,category?,excludedCategories?:string[],source?,keyword?}（摊销账单按分摊月展开，附 monthlyAmount 与 amortizationMonthIndex）· bill.getById{id} · bill.reimbursements · bill.stats{year,month,category?,excludedCategories?:string[],source?,keyword?}（与 list 共用筛选；排除优先，分类名精确匹配）· bill.filters · tag.list（两级分类树，parentId=null 为一级）· database.overview · settings.get（含明文 apiKey，勿外传）。
+[update] bill.update{id,...字段}（省略字段不改；reimbursementStatus:null 取消报销并清空报销方；reimbursementParty:null 仅清空报销方）· bill.delete{id} → {success:true} · tag.create{name,color:#RRGGBB,icon,parentId?,sortOrder?} · tag.update{id,...} · tag.merge{sourceId,targetId} · tag.delete{id}（「杂项」不可改/删/作合并源；被账单占用或有子分类会被拒绝）。
 [recognize] POST /api/trpc/bill.recognize {"text"?:≤5000字,"imageDataUrls"?:≤10张 data URL,"year","month","categories":[],"sources":[],"reimbursementParties":[]} → {"bills":[…]}，只给建议不写库；未配置 AI Key 时 500「请先在设置页面填写并保存 AI API Key」。tag.infer 同理用于推荐父分类/图标/颜色。
 [sync] 独立 REST：GET /api/webdav/status · POST /api/webdav/{test,push,pull}（pull 需 {"confirm":true}，会覆盖本地库；POST 请始终带 JSON body，哪怕 {}）· GET /api/database/download · POST /api/database/upload（multipart，字段名 database）。
 [rules] 分类优先匹配最具体的子分类，不确定用「杂项」，不要编造新分类；要建新分类先用 tag.create 并让用户确认。

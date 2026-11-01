@@ -74,7 +74,8 @@
   }
 }
 
-.bill-category-pie-chart .recharts-sector:focus,
-.bill-category-pie-chart .recharts-sector:focus-visible {
+/* Recharts focuses SVG wrapper layers as well as the sector path. */
+.bill-category-pie-chart:focus,
+.bill-category-pie-chart :focus {
   outline: none;
 }

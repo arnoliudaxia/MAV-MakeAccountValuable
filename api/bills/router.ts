@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createRouter, protectedQuery } from "../middleware";
 import * as store from "./store";
+import { createBillFilter } from "./filter";
 import { getAiClient } from "../lib/ai";
 import { getSettings } from "../settings/store";
 import { BILL_RECOGNITION_OUTPUT_FORMAT_PROMPT } from "../../contracts/settings";
@@ -299,22 +300,7 @@ export const billRouter = createRouter({
   list: protectedQuery.input(ListBillsInput).query(async ({ input }) => {
     const bills = await store.findByMonth(input.year, input.month);
 
-    let filtered = bills;
-    if (input.category) {
-      filtered = filtered.filter(b => b.category === input.category);
-    }
-    if (input.source) {
-      filtered = filtered.filter(b => b.source === input.source);
-    }
-    if (input.keyword) {
-      const kw = input.keyword.toLowerCase();
-      filtered = filtered.filter(
-        b =>
-          b.name.toLowerCase().includes(kw) ||
-          b.category.toLowerCase().includes(kw) ||
-          b.source.toLowerCase().includes(kw)
-      );
-    }
+    const filtered = bills.filter(createBillFilter(input));
 
     return filtered.sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -445,7 +431,9 @@ export const billRouter = createRouter({
     }),
 
   stats: protectedQuery.input(ListBillsInput).query(async ({ input }) => {
-    const bills = await store.findByMonth(input.year, input.month);
+    const bills = (await store.findByMonth(input.year, input.month)).filter(
+      createBillFilter(input)
+    );
 
     const getAccountingAmount = (bill: Bill) =>
       bill.monthlyAmount ?? bill.amount;

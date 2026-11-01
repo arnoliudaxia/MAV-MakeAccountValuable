@@ -21,6 +21,7 @@ interface FilterBarProps {
   onYearChange: (year: number) => void;
   onMonthChange: (month: number) => void;
   category?: string;
+  excludedCategories?: string[];
   source?: string;
   keyword?: string;
   onCategoryChange: (category: string) => void;
@@ -35,6 +36,7 @@ export function FilterBar({
   onYearChange,
   onMonthChange,
   category,
+  excludedCategories = [],
   source,
   keyword,
   onCategoryChange,
@@ -45,6 +47,13 @@ export function FilterBar({
   const { data: filters } = trpc.bill.filters.useQuery();
   const { data: tags } = trpc.tag.list.useQuery();
   const [localKeyword, setLocalKeyword] = useState(keyword || "");
+  const tagNames = new Set(tags?.map(tag => tag.name));
+  const otherCategories = [
+    ...new Set([
+      ...(filters?.categories ?? []),
+      ...(category ? [category] : []),
+    ]),
+  ].filter(name => !tagNames.has(name));
   const topLevelTags =
     tags?.filter(
       tag =>
@@ -157,14 +166,26 @@ export function FilterBar({
         </div>
 
         <Select
-          value={category || "all"}
+          value={
+            category || (excludedCategories.length ? "__excluded__" : "all")
+          }
           onValueChange={v => onCategoryChange(v === "all" ? "" : v)}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="分类筛选">
             <SelectValue placeholder="全部分类" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部分类</SelectItem>
+            {excludedCategories.length > 0 && (
+              <SelectItem value="__excluded__" disabled>
+                已排除 {excludedCategories.length} 类
+              </SelectItem>
+            )}
+            {otherCategories.map(name => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
             {topLevelTags.map(tag => {
               const children = childrenByParent.get(tag.id) ?? [];
               return (

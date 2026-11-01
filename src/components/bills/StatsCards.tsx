@@ -2,13 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/providers/trpc";
 import { Loader2, Receipt, Wallet, Clock, CheckCircle } from "lucide-react";
 
-interface StatsCardsProps {
-  year: number;
-  month: number;
-}
+import type { ListBillsInput } from "@contracts/bill";
 
-export function StatsCards({ year, month }: StatsCardsProps) {
-  const { data: stats, isLoading } = trpc.bill.stats.useQuery({ year, month });
+export function StatsCards(filters: ListBillsInput) {
+  const { data: stats, isLoading } = trpc.bill.stats.useQuery(filters);
 
   if (isLoading) {
     return (

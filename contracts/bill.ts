@@ -55,14 +55,16 @@ export const UpdateBillInput = z.object({
     .min(1, "摊销时长至少为 1 个月")
     .max(360, "摊销时长不能超过 360 个月")
     .optional(),
-  reimbursementStatus: ReimbursementStatus.optional(),
-  reimbursementParty: z.string().optional(),
+  // Omitted fields are unchanged; null explicitly clears reimbursement data.
+  reimbursementStatus: ReimbursementStatus.nullish(),
+  reimbursementParty: z.string().nullish(),
 });
 
 export const ListBillsInput = z.object({
   year: z.number(),
   month: z.number().min(1).max(12),
   category: z.string().optional(),
+  excludedCategories: z.array(z.string()).optional(),
   source: z.string().optional(),
   keyword: z.string().optional(),
 });

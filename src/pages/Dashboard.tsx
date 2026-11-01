@@ -1,4 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
+import {
+  dashboardFilters,
+  selectCategory,
+  toggleExcludedCategory,
+} from "@/components/bills/category-filters";
 import { StatsCards } from "@/components/bills/StatsCards";
 import { StatsCharts } from "@/components/bills/StatsCharts";
 import { BillTable } from "@/components/bills/BillTable";
@@ -48,7 +55,16 @@ export default function Dashboard() {
   const initialMonth = getInitialDashboardMonth();
   const [year, setYear] = useState(initialMonth.year);
   const [month, setMonth] = useState(initialMonth.month);
-  const [category, setCategory] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState(() =>
+    selectCategory("")
+  );
+  const { category, excludedCategories } = categoryFilter;
+  const handleCategorySelect = useCallback((name: string) => {
+    setCategoryFilter(selectCategory(name));
+  }, []);
+  const handleCategoryExclude = useCallback((name: string) => {
+    setCategoryFilter(current => toggleExcludedCategory(current, name));
+  }, []);
   const [source, setSource] = useState("");
   const [keyword, setKeyword] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -60,11 +76,70 @@ export default function Dashboard() {
     );
   }, [year, month]);
 
+  const activeFilters = dashboardFilters(
+    year,
+    month,
+    source,
+    keyword,
+    categoryFilter
+  );
+
   return (
     <div className="space-y-6">
-      <StatsCards year={year} month={month} />
+      <section
+        aria-label="当前分类筛选"
+        className="flex flex-wrap items-center gap-2 rounded-lg border p-3"
+      >
+        <span className="text-sm text-muted-foreground">分类筛选：</span>
+        <div
+          role="status"
+          className="flex flex-wrap items-center gap-2 text-sm"
+        >
+          {category ? (
+            <span>仅看：{category}</span>
+          ) : excludedCategories.length === 0 ? (
+            <span>全部分类</span>
+          ) : (
+            <span>已排除：</span>
+          )}
+          {excludedCategories.map(name => (
+            <Button
+              key={name}
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-7 gap-1 rounded-full"
+              aria-label={`恢复分类：${name}`}
+              onClick={() => handleCategoryExclude(name)}
+            >
+              {name}
+              <X className="h-3 w-3" aria-hidden="true" />
+            </Button>
+          ))}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="ml-auto"
+          onClick={() => handleCategorySelect("")}
+        >
+          清除分类筛选
+        </Button>
+      </section>
 
-      <StatsCharts year={year} month={month} onCategorySelect={setCategory} />
+      <StatsCards {...activeFilters} />
+
+      <StatsCharts
+        year={year}
+        month={month}
+        source={source}
+        keyword={keyword}
+        category={category}
+        excludedCategories={excludedCategories}
+        onCategorySelect={handleCategorySelect}
+        onCategoryExclude={handleCategoryExclude}
+      />
 
       <Card>
         <CardHeader>
@@ -77,20 +152,15 @@ export default function Dashboard() {
             onYearChange={setYear}
             onMonthChange={setMonth}
             category={category}
+            excludedCategories={excludedCategories}
             source={source}
             keyword={keyword}
-            onCategoryChange={setCategory}
+            onCategoryChange={handleCategorySelect}
             onSourceChange={setSource}
             onKeywordChange={setKeyword}
             onAddClick={() => setFormOpen(true)}
           />
-          <BillTable
-            year={year}
-            month={month}
-            category={category || undefined}
-            source={source || undefined}
-            keyword={keyword || undefined}
-          />
+          <BillTable {...activeFilters} />
         </CardContent>
       </Card>
 
